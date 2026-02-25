@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import csv
@@ -10,6 +11,19 @@ from collections import deque
 import cv2 as cv
 import numpy as np
 import mediapipe as mp
+import arabic_reshaper
+from bidi.algorithm import get_display
+from PIL import ImageFont, ImageDraw, Image
+import numpy as np
+import os  # سنحتاجه للتأكد من وجود المجلد
+# تحديد مكان الخط بناءً على المجلد الذي أنشأته
+# تأكد من أن اسم الملف trado.ttf مكتوب بنفس الحروف تماماً
+FONT_PATH = os.path.join('font', 'trado.ttf') 
+
+# متغيرات تجميع الكلمة
+word_buffer = ""
+last_stable_char = ""
+char_counter = 0
 
 from utils import CvFpsCalc
 from model import KeyPointClassifier
@@ -38,13 +52,30 @@ def get_args():
     return args
 
 
-def main():
-    # Argument parsing #################################################################
-    args = get_args()
+def draw_arabic_text(image, text, position, font_size=32):
+    img_pil = Image.fromarray(image)
+    draw = ImageDraw.Draw(img_pil)
+    reshaped_text = arabic_reshaper.reshape(text)
+    bidi_text = get_display(reshaped_text)
+    
+    try:
+        font = ImageFont.truetype(FONT_PATH, font_size)
+    except:
+        font = ImageFont.load_default()
+        
+    draw.text(position, bidi_text, font=font, fill=(255, 255, 255))
+    return np.array(img_pil)
 
+def main():
+    
+    # هذا هو السطر الصحيح الوحيد الذي تحتاجه
+    global word_buffer, last_stable_char, char_counter
+    
+    # اترك باقي الأسطر كما كانت بدون كلمة global بجانبها
+    args = get_args()
     cap_device = args.device
-    cap_width = args.width
-    cap_height = args.height
+    cap_width = args.width 
+    cap_height = args.height 
 
     use_static_image_mode = args.use_static_image_mode
     min_detection_confidence = args.min_detection_confidence
@@ -54,6 +85,10 @@ def main():
 
     # Camera preparation ###############################################################
     cap = cv.VideoCapture(cap_device)
+    if not cap.isOpened():
+        print(f"Error: Could not open camera with device index {cap_device}.")
+        return
+
     cap.set(cv.CAP_PROP_FRAME_WIDTH, cap_width)
     cap.set(cv.CAP_PROP_FRAME_HEIGHT, cap_height)
 
@@ -97,6 +132,7 @@ def main():
 
     #  ########################################################################
     mode = 0
+    number = 0
 
     while True:
         fps = cvFpsCalc.get()
@@ -105,11 +141,15 @@ def main():
         key = cv.waitKey(10)
         if key == 27:  # ESC
             break
-        number, mode = select_mode(key, mode)
+        number, mode = select_mode(key, mode, number)
+
+        if key == ord('n'): # إذا ضغطت حرف N يمسح الكلمة ويبدأ من جديد
+         word_buffer = ""
 
         # Camera capture #####################################################
         ret, image = cap.read()
         if not ret:
+            print("Error: Failed to capture image from camera.")
             break
         image = cv.flip(image, 1)  # Mirror display
         debug_image = copy.deepcopy(image)
@@ -145,7 +185,24 @@ def main():
                     point_history.append(landmark_list[8])
                 else:
                     point_history.append([0, 0])
+                # --- محرك تجميع الحروف العربية ---
+        # الحصول على نص الحرف من القائمة
+                current_char = keypoint_classifier_labels[hand_sign_id]
 
+        # التأكد من ثبات اليد (للتجنب التكرار العشوائي)
+                if current_char == last_stable_char and current_char != "":
+                    char_counter += 1
+                else:
+                    char_counter = 0
+                last_stable_char = current_char
+
+        # إذا ثبتت اليد لـ 20 إطار (ثانية تقريباً) أضف الحرف
+                if char_counter == 20:
+                    if current_char == "مسافة":
+                        word_buffer += " "
+                    else:
+                        word_buffer += current_char
+                    char_counter = 0
                 # Finger gesture classification
                 finger_gesture_id = 0
                 point_history_len = len(pre_processed_point_history_list)
@@ -174,6 +231,11 @@ def main():
         debug_image = draw_point_history(debug_image, point_history)
         debug_image = draw_info(debug_image, fps, mode, number)
 
+       # رسم المستطيل الأسود في الأسفل
+        cv.rectangle(debug_image, (0, 420), (640, 480), (0, 0, 0), -1)
+
+# كتابة الكلمة العربية المجمعة
+        debug_image = draw_arabic_text(debug_image, "الكلمة: " + word_buffer, (10, 430))
         # Screen reflection #############################################################
         cv.imshow('Hand Gesture Recognition', debug_image)
 
@@ -181,10 +243,14 @@ def main():
     cv.destroyAllWindows()
 
 
-def select_mode(key, mode):
-    number = -1
+def select_mode(key, mode, number):
     if 48 <= key <= 57:  # 0 ~ 9
         number = key - 48
+    if key == 106:  # j (increase)
+        number += 1
+    if key == 109:  # m (decrease)
+        number -= 1
+        if number < 0: number = 0
     if key == 110:  # n
         mode = 0
     if key == 107:  # k
@@ -532,7 +598,7 @@ def draw_info(image, fps, mode, number):
         cv.putText(image, "MODE:" + mode_string[mode - 1], (10, 90),
                    cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,
                    cv.LINE_AA)
-        if 0 <= number <= 9:
+        if number >= 0:
             cv.putText(image, "NUM:" + str(number), (10, 110),
                        cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,
                        cv.LINE_AA)
