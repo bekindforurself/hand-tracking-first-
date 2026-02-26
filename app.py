@@ -34,8 +34,8 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--device", type=int, default=0)
-    parser.add_argument("--width", help='cap width', type=int, default=960)
-    parser.add_argument("--height", help='cap height', type=int, default=540)
+    parser.add_argument("--width", help='cap width', type=int, default=640)
+    parser.add_argument("--height", help='cap height', type=int, default=480)
 
     parser.add_argument('--use_static_image_mode', action='store_true')
     parser.add_argument("--min_detection_confidence",
@@ -52,18 +52,29 @@ def get_args():
     return args
 
 
-def draw_arabic_text(image, text, position, font_size=32):
+# تحميل الخط مرة واحدة فقط في البداية لتوفير الوقت
+try:
+    GLOBAL_FONT = ImageFont.truetype(FONT_PATH, 32)
+except:
+    GLOBAL_FONT = ImageFont.load_default()
+
+# ذاكرة مؤقتة للنصوص العربية لتقليل العمليات الحسابية
+TEXT_CACHE = {}
+
+def draw_arabic_text(image, text, position):
+    global TEXT_CACHE
+    
+    # إذا كان النص موجوداً في الذاكرة، نستخدمه مباشرة
+    if text in TEXT_CACHE:
+        bidi_text = TEXT_CACHE[text]
+    else:
+        reshaped_text = arabic_reshaper.reshape(text)
+        bidi_text = get_display(reshaped_text)
+        TEXT_CACHE[text] = bidi_text
+
     img_pil = Image.fromarray(image)
     draw = ImageDraw.Draw(img_pil)
-    reshaped_text = arabic_reshaper.reshape(text)
-    bidi_text = get_display(reshaped_text)
-    
-    try:
-        font = ImageFont.truetype(FONT_PATH, font_size)
-    except:
-        font = ImageFont.load_default()
-        
-    draw.text(position, bidi_text, font=font, fill=(255, 255, 255))
+    draw.text(position, bidi_text, font=GLOBAL_FONT, fill=(255, 255, 255))
     return np.array(img_pil)
 
 def main():
@@ -143,8 +154,18 @@ def main():
             break
         number, mode = select_mode(key, mode, number)
 
+        is_recording = False
+        if key == 32:  # Space key
+            is_recording = True
+
         if key == ord('n'): # إذا ضغطت حرف N يمسح الكلمة ويبدأ من جديد
-         word_buffer = ""
+          word_buffer = ""
+
+        if key == 8: # Backspace - مسح آخر حرف
+          word_buffer = word_buffer[:-1]
+        
+        if key == 32 and mode != 1: # Space - إضافة مسافة (فقط إذا لم نكن في وضع التدريب)
+          word_buffer += " "
 
         # Camera capture #####################################################
         ret, image = cap.read()
@@ -175,9 +196,10 @@ def main():
                     landmark_list)
                 pre_processed_point_history_list = pre_process_point_history(
                     debug_image, point_history)
-                # Write to the dataset file
-                logging_csv(number, mode, pre_processed_landmark_list,
-                            pre_processed_point_history_list)
+                # Write to the dataset file (فقط إذا كان وضع الحفظ مفعلاً والمسافة مضغوطة)
+                if mode == 1 and is_recording:
+                    logging_csv(number, mode, pre_processed_landmark_list,
+                                pre_processed_point_history_list)
 
                 # Hand sign classification
                 hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
@@ -200,6 +222,8 @@ def main():
                 if char_counter == 20:
                     if current_char == "مسافة":
                         word_buffer += " "
+                    elif current_char == "حذف":
+                        word_buffer = word_buffer[:-1]
                     else:
                         word_buffer += current_char
                     char_counter = 0
@@ -229,13 +253,14 @@ def main():
             point_history.append([0, 0])
 
         debug_image = draw_point_history(debug_image, point_history)
-        debug_image = draw_info(debug_image, fps, mode, number)
+        debug_image = draw_info(debug_image, fps, mode, number, is_recording)
 
        # رسم المستطيل الأسود في الأسفل
         cv.rectangle(debug_image, (0, 420), (640, 480), (0, 0, 0), -1)
 
-# كتابة الكلمة العربية المجمعة
-        debug_image = draw_arabic_text(debug_image, "الكلمة: " + word_buffer, (10, 430))
+# كتابة الكلمة العربية المجمعة وتعليمات التحكم
+        debug_image = draw_arabic_text(debug_image, "الكلمة: " + word_buffer, (10, 425))
+        debug_image = draw_arabic_text(debug_image, "Backspace: حذف حرف | Space: مسافة | N: مسح الكل", (10, 455))
         # Screen reflection #############################################################
         cv.imshow('Hand Gesture Recognition', debug_image)
 
@@ -345,13 +370,12 @@ def pre_process_point_history(image, point_history):
 
 
 def logging_csv(number, mode, landmark_list, point_history_list):
-    if mode == 0:
-        pass
-    if mode == 1 and (0 <= number <= 9):
-        csv_path = 'model/keypoint_classifier/keypoint.csv'
-        with open(csv_path, 'a', newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow([number, *landmark_list])
+    if mode == 1:
+        if 0 <= number <= 37:
+            csv_path = 'model/keypoint_classifier/keypoint.csv'
+            with open(csv_path, 'a', newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow([number, *landmark_list])
     if mode == 2 and (0 <= number <= 9):
         csv_path = 'model/point_history_classifier/point_history.csv'
         with open(csv_path, 'a', newline="") as f:
@@ -587,7 +611,7 @@ def draw_point_history(image, point_history):
     return image
 
 
-def draw_info(image, fps, mode, number):
+def draw_info(image, fps, mode, number, is_recording=False):
     cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
                1.0, (0, 0, 0), 4, cv.LINE_AA)
     cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
@@ -601,6 +625,10 @@ def draw_info(image, fps, mode, number):
         if number >= 0:
             cv.putText(image, "NUM:" + str(number), (10, 110),
                        cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,
+                       cv.LINE_AA)
+        if is_recording:
+            cv.putText(image, "REC", (10, 150),
+                       cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2,
                        cv.LINE_AA)
     return image
 
