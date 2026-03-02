@@ -1,0 +1,222 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;700&family=Inter:wght@300;400;600&display=swap');
+
+:root {
+    --primary-color: #2b7cee;
+    --primary-hover: #1e5bb9;
+    --background-gradient: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    --glass-bg: rgba(255, 255, 255, 0.4);
+    --glass-border: rgba(255, 255, 255, 0.3);
+    --card-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    --text-color: #2c3e50;
+    --accent-color: #00d2ff;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Cairo', 'Inter', sans-serif;
+    background: var(--background-gradient);
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    direction: ltr;
+    /* الـ layout عام من اليسار لليمين */
+    color: var(--text-color);
+}
+
+.container {
+    width: 95%;
+    max-width: 1200px;
+    height: 85vh;
+    display: flex;
+    gap: 20px;
+    direction: ltr;
+    /* الكاميرا يسار، الترجمة يمين */
+}
+
+.glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 20px;
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--card-shadow);
+    padding: 20px;
+}
+
+/* Left Section: Camera Feed */
+.camera-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.section-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 15px;
+    padding: 10px 15px;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 10px;
+    text-align: center;
+}
+
+.video-container {
+    position: relative;
+    flex: 1;
+    background: #000;
+    border-radius: 15px;
+    overflow: hidden;
+}
+
+#video-feed {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.char-overlay {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    padding: 8px 15px;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    z-index: 10;
+}
+
+/* Right Section: Translation & Controls */
+.translation-section {
+    flex: 1.2;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    direction: rtl;
+    /* النصوص العربية من اليمين */
+}
+
+.text-display-box {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 30px;
+    text-align: center;
+}
+
+.sentence-display {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--text-color);
+    margin-bottom: 20px;
+    min-height: 100px;
+}
+
+.suggestions-container {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.suggestion-pill {
+    padding: 10px 25px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+    font-weight: 600;
+}
+
+.suggestion-pill:hover {
+    background: rgba(255, 255, 255, 0.8);
+    transform: translateY(-2px);
+}
+
+.suggestion-pill.active {
+    background: var(--primary-color);
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(43, 124, 238, 0.3);
+}
+
+.controls-section {
+    display: flex;
+    gap: 15px;
+    justify-content: space-between;
+}
+
+.btn {
+    padding: 12px 25px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    font-family: 'Cairo', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-primary {
+    background: var(--primary-color);
+    color: white;
+    flex: 2;
+    justify-content: center;
+}
+
+.btn-primary:hover {
+    background: var(--primary-hover);
+    box-shadow: 0 4px 15px rgba(43, 124, 238, 0.4);
+}
+
+.btn-secondary {
+    background: white;
+    color: var(--text-color);
+    flex: 1;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.btn-secondary:hover {
+    background: #f8f9fa;
+}
+
+.btn-danger {
+    background: rgba(255, 87, 87, 0.1);
+    color: #ff5757;
+    flex: 1;
+    justify-content: center;
+}
+
+.btn-danger:hover {
+    background: rgba(255, 87, 87, 0.2);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease forwards;
+}

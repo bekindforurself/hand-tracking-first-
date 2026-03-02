@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تطبيق لغة الإشارة - سنابل</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="container fade-in">
+        <!-- Left Section: Live Sign Detection (Camera) -->
+        <div class="glass-card camera-section" style="direction:ltr;">
+            <div class="section-title"
+                style="font-family:'Inter',sans-serif; display:flex; justify-content:space-between; align-items:center;">
+                <span>Live Sign Detection</span>
+                <button id="btn-shutdown" title="إيقاف التطبيق"
+                    style="background:rgba(255,87,87,0.15);border:none;color:#ff5757;border-radius:8px;padding:4px 10px;cursor:pointer;font-size:1rem;">&#x23F9;
+                    إيقاف</button>
+            </div>
+            <div class="video-container">
+                <img id="video-feed" src="/snapshot" alt="Camera Feed">
+                <div id="detected-char" class="char-overlay">الحرف: ...</div>
+            </div>
+        </div>
+
+        <!-- Right Section: Translation & Interaction -->
+        <div class="glass-card translation-section">
+            <div class="text-display-box">
+                <div id="sentence-display" class="sentence-display"></div>
+
+                <div class="suggestions-container" id="suggestions">
+                    <!-- سيتم ملؤها ديناميكياً عبر JavaScript -->
+                </div>
+            </div>
+
+            <div class="controls-section">
+                <button id="btn-clear-all" class="btn btn-secondary">🗑 مسح الكل</button>
+                <button id="btn-clear" class="btn btn-danger">
+                    &#8592; حذف
+                </button>
+                <button id="btn-speak" class="btn btn-primary">
+                    <i class="fas fa-volume-up"></i> تشغيل الصوت
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+
+</html>

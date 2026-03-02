@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import csv, copy, argparse, itertools, os, requests, json, threading
+import csv, copy, argparse, itertools, os, requests, json, threading, pygame
+from gtts import gTTS
+
+
 from collections import Counter, deque
 import cv2 as cv
 import numpy as np
@@ -19,9 +22,35 @@ if os.path.exists(CONVERSATION_FILE):
         with open(CONVERSATION_FILE, "r", encoding="utf-8") as f:
             LOADED_DICT = json.load(f)
     except: pass
+    
+# --- إعدادات الصوت (TTS - Google) ---
+pygame.mixer.init()
+
+def speak_text(text):
+    if not text.strip(): return
+    def run():
+        try:
+            tts = gTTS(text=text, lang='ar')
+            temp_file = "temp_speech.mp3"
+            tts.save(temp_file)
+            
+            pygame.mixer.music.load(temp_file)
+            pygame.mixer.music.play()
+            while pygame.mixer.music.get_busy():
+                pygame.time.Clock().tick(10)
+            
+            pygame.mixer.music.unload() # تحرير الملف للحذف
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+        except Exception as e:
+            print(f"Error playing sound: {e}")
+            
+    threading.Thread(target=run).start()
+
+
 
 # قائمة الكلمات الشائعة للتكملة التلقائية (Autocomplete)
-COMMON_WORDS = ["أنا", "أريد", "أين", "أحب", "أحتاج", "كيف", "مرحبا", "شكرا", "السلام", "هل", "في", "إلى", "من", "رايح", "بدي", "وين", "شو", "لو", "ان", "شاء", "الله", "يا", "اخي", "امي", "ابي", "تعبان", "جائع", "مريض", "بخير", "دكتور", "مستشفى", "حمام", "ماء", "اكل", "نوم"]
+COMMON_WORDS = ["أنا", "أريد", "يذهب", "اذهب", "نذهب", "تذهب", "أين", "أحب", "أحتاج", "كيف", "مرحبا", "شكرا", "السلام", "هل", "في", "إلى", "من", "رايح", "بدي", "وين", "شو", "لو", "ان", "شاء", "الله", "يا", "اخي", "امي", "ابي", "تعبان", "جائع", "مريض", "بخير", "دكتور", "مستشفى", "حمام", "ماء", "اكل", "نوم"]
 
 def normalize(text):
     """تطهير النص لضمان المطابقة"""
@@ -59,7 +88,13 @@ def get_conversational_ai(text):
             forbidden = ["اخبار", "طقس", "مباراة", "فيلم", "سعر", "يوتيوب"]
             for s in raw_cloud:
                 if any(f in s for f in forbidden): continue # استبعاد الاخبار والافلام
-                s_sug = s.replace(raw_text, "").strip() # نأخذ فقط التكملة
+                
+                # استخراج التكملة الذكية بناءً على موضع الكلمات
+                q_words = raw_text.split()
+                s_words = s.split()
+                idx = len(q_words) if text.endswith(" ") else len(q_words) - 1
+                s_sug = " ".join(s_words[idx:]) if len(s_words) > idx else s
+                
                 if s_sug and len(s_sug.split()) <= 2:
                     cloud_clean.append(s_sug)
             return cloud_clean[:4]
@@ -116,6 +151,8 @@ def main():
         if key == ord('n'): word_buffer = ""; suggestions = []
         if key == 8: word_buffer = word_buffer[:-1]; suggestions = []
         if key == 32: word_buffer += " "; threading.Thread(target=update_sugs, args=(word_buffer,)).start()
+        if key == ord('s'): speak_text(word_buffer) # حرف S للنطق
+
 
         ret, image = cap.read()
         if not ret: break
@@ -170,7 +207,8 @@ def main():
 
         cv.rectangle(debug_image, (0, 420), (640, 480), (0, 0, 0), -1)
         debug_image = draw_arabic_text(debug_image, "الجملة (ذكاء اصطناعي): " + word_buffer, (10, 425), font)
-        debug_image = draw_arabic_text(debug_image, "تنبؤات حوارية (1-4 للاختيار السريع) مثل كيبورد Gboard", (10, 458), font_small, color=(160, 160, 160))
+        debug_image = draw_arabic_text(debug_image, "تنبؤات حوارية (1-4 للاختيار) | مفتاح S للنطق | N للمسح", (10, 458), font_small, color=(160, 160, 160))
+
         
         cv.imshow('Smart Conversational ASL', debug_image)
 
