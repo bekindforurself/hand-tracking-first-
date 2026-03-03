@@ -8,11 +8,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnShutdown = document.getElementById('btn-shutdown');
     const videoFeed = document.getElementById('video-feed');
 
+    let lastDetectedChar = "";
+
     // زر الإيقاف
     btnShutdown.onclick = () => {
         if (confirm('هل أنت متأكد من إيقاف التطبيق؟')) {
-            fetch('/shutdown', { method: 'POST' })
-                .catch(() => { }); // الاتصال سينتهي مع السيرفر
+            fetch('/shutdown', { method: 'POST' }).catch(() => { });
             btnShutdown.innerText = '⏹ جارِ الإيقاف...';
             btnShutdown.disabled = true;
         }
@@ -55,21 +56,26 @@ document.addEventListener('DOMContentLoaded', () => {
             videoFeed.src = newSrc;
             setTimeout(refreshCamera, 80);
         };
-        img.onerror = () => {
-            setTimeout(refreshCamera, 200); // إعادة المحاولة عند الخطأ
-        };
+        img.onerror = () => setTimeout(refreshCamera, 200);
         img.src = newSrc;
     }
     refreshCamera();
 
-    // --- تحديث واجهة النص والاقتراحات ---
+    // --- تحديث واجهة النص والاقتراحات والثقة ---
     function updateUI() {
         fetch('/get_status')
             .then(response => response.json())
             .then(data => {
                 sentenceDisplay.innerText = data.sentence || "";
-                detectedCharDisplay.innerText = `الحرف: ${data.detected_char || "..."}`;
 
+                // تحديث الحرف مع تأثير وميض إذا تغير
+                if (data.detected_char && data.detected_char !== lastDetectedChar) {
+                    detectedCharDisplay.classList.remove('glow-pulse');
+                    void detectedCharDisplay.offsetWidth; // Trigger reflow
+                    detectedCharDisplay.classList.add('glow-pulse');
+                    lastDetectedChar = data.detected_char;
+                }
+                detectedCharDisplay.innerText = `الحرف: ${data.detected_char || "..."}`;
                 if (data.suggestions && data.suggestions.length > 0) {
                     suggestionsContainer.innerHTML = '';
                     data.suggestions.forEach((sug, index) => {

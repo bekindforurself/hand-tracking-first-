@@ -83,13 +83,47 @@ body {
 .char-overlay {
     position: absolute;
     top: 15px;
-    right: 15px;
-    background: rgba(0, 0, 0, 0.7);
-    color: #fff;
+    padding: 10px 20px;
+    background: rgba(13, 110, 253, 0.9);
+    color: white;
+    border-radius: 20px;
+    font-size: 1.5rem;
+    font-weight: 700;
+    box-shadow: 0 4px 15px rgba(13, 110, 253, 0.4);
+    backdrop-filter: blur(5px);
+}
+
+.confidence-badge {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
     padding: 8px 15px;
-    border-radius: 8px;
-    font-size: 1.1rem;
-    z-index: 10;
+    background: rgba(33, 37, 41, 0.85);
+    color: #0dcaf0;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    border: 1px solid rgba(13, 202, 240, 0.3);
+    backdrop-filter: blur(5px);
+    transition: all 0.3s ease;
+}
+
+@keyframes pulse-success {
+    0% {
+        box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 15px rgba(25, 135, 84, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(25, 135, 84, 0);
+    }
+}
+
+.glow-pulse {
+    animation: pulse-success 0.5s ease-out;
 }
 
 /* Right Section: Translation & Controls */

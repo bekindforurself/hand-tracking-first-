@@ -130,6 +130,8 @@ def detection_thread():
             char_found = ""
             if results.multi_hand_landmarks:
                 for hand_landmarks in results.multi_hand_landmarks:
+                    # رسم خطوط التتبع (Skeleton) لرؤيتها في المتصفح يتم يدوياً في الأسفل لضمان النظافة بدون نقاط
+                    
                     landmark_list = []
                     for landmark in hand_landmarks.landmark:
                         landmark_list.append([min(int(landmark.x * 640), 639), min(int(landmark.y * 480), 479)])
@@ -148,11 +150,10 @@ def detection_thread():
 
                     for i, j in [(2,3),(3,4),(5,6),(6,7),(7,8),(9,10),(10,11),(11,12),(13,14),(14,15),(15,16),(17,18),(18,19),(19,20),(0,1),(1,2),(2,5),(5,9),(9,13),(13,17),(17,0)]:
                         cv.line(frame, tuple(landmark_list[i]), tuple(landmark_list[j]), (255, 255, 255), 2)
-                    for p in landmark_list:
-                        cv.circle(frame, tuple(p), 5, (0, 255, 0), -1)
 
             with state.lock:
                 state.detected_char = char_found
+                
                 if char_found == state.last_stable_char and char_found != "":
                     state.char_counter += 1
                 else:
