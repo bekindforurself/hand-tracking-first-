@@ -4,37 +4,77 @@ document.addEventListener('DOMContentLoaded', () => {
     const suggestionsContainer = document.getElementById('suggestions');
     const btnSpeak = document.getElementById('btn-speak');
     const btnClear = document.getElementById('btn-clear');
-    const btnClearAll = document.getElementById('btn-clear-all');
-    const btnShutdown = document.getElementById('btn-shutdown');
+    const btnFinish = document.getElementById('btn-finish');
+    const btnToggleCapture = document.getElementById('btn-toggle-capture');
     const videoFeed = document.getElementById('video-feed');
 
     let lastDetectedChar = "";
+    let activeSuggestionIndex = 0; // المؤشر الحالي للاقتراحات
+    let currentSuggestions = [];
+    let isCapturing = true;
 
-    // زر الإيقاف
-    btnShutdown.onclick = () => {
-        if (confirm('هل أنت متأكد من إيقاف التطبيق؟')) {
-            fetch('/shutdown', { method: 'POST' }).catch(() => { });
-            btnShutdown.innerText = '⏹ جارِ الإيقاف...';
-            btnShutdown.disabled = true;
+
+    // تبديل حالة الالتقاط
+    function toggleCapture() {
+        fetch('/toggle_capture', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                isCapturing = data.is_capturing;
+                updateCaptureUI();
+            });
+    }
+
+    function updateCaptureUI() {
+        if (isCapturing) {
+            btnToggleCapture.classList.remove('inactive');
+            btnToggleCapture.classList.add('active');
+            btnToggleCapture.innerHTML = '<i class="fas fa-video"></i>';
+            detectedCharDisplay.style.display = 'block';
+        } else {
+            btnToggleCapture.classList.remove('active');
+            btnToggleCapture.classList.add('inactive');
+            btnToggleCapture.innerHTML = '<i class="fas fa-video-slash"></i>';
+            detectedCharDisplay.style.display = 'none';
         }
-    };
+    }
+
+    btnToggleCapture.onclick = toggleCapture;
 
     // --- اختصارات لوحة المفاتيح ---
     document.addEventListener('keydown', (e) => {
-        // منع تأثيرات المتصفح الافتراضية
-        if (['Space', 'Backspace'].includes(e.code)) e.preventDefault();
+        if (['Space', 'Backspace', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.code)) e.preventDefault();
 
         switch (e.code) {
+            case 'KeyC': // حرف C لتشغيل/إيقاف الالتقاط
+                toggleCapture();
+                break;
             case 'Backspace':
                 fetch('/clear', { method: 'POST' }).then(() => updateUI());
                 break;
             case 'Space':
                 fetch('/add_space', { method: 'POST' }).then(() => updateUI());
                 break;
+            case 'Enter':
+                if (currentSuggestions.length > 0) {
+                    selectSuggestion(currentSuggestions[activeSuggestionIndex]);
+                }
+                break;
+            case 'ArrowLeft': // التالي في RTL
+                if (currentSuggestions.length > 0) {
+                    activeSuggestionIndex = (activeSuggestionIndex + 1) % currentSuggestions.length;
+                    renderPills();
+                }
+                break;
+            case 'ArrowRight': // السابق في RTL
+                if (currentSuggestions.length > 0) {
+                    activeSuggestionIndex = (activeSuggestionIndex - 1 + currentSuggestions.length) % currentSuggestions.length;
+                    renderPills();
+                }
+                break;
             case 'KeyS':
                 fetch('/speak', { method: 'POST' });
                 break;
-            case 'KeyN':
+            case 'KeyF': // إنهاء الجملة (مسح الكل)
                 fetch('/clear_all', { method: 'POST' }).then(() => updateUI());
                 break;
             case 'Digit1': case 'Numpad1':
@@ -48,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- تحديث الكاميرا كل 80ms (snapshot polling) ---
+    // --- تحديث الكاميرا كل 80ms ---
     function refreshCamera() {
         const newSrc = '/snapshot?t=' + Date.now();
         const img = new Image();
@@ -61,33 +101,44 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     refreshCamera();
 
-    // --- تحديث واجهة النص والاقتراحات والثقة ---
+    // دالة رسم الاقتراحات لضمان تحديث الـ active class فوراً
+    function renderPills() {
+        suggestionsContainer.innerHTML = '';
+        currentSuggestions.forEach((sug, index) => {
+            const pill = document.createElement('div');
+            pill.className = 'suggestion-pill';
+            if (index === activeSuggestionIndex) pill.classList.add('active');
+            pill.innerText = sug;
+            pill.onclick = () => selectSuggestion(sug);
+            suggestionsContainer.appendChild(pill);
+        });
+    }
+
+    // --- تحديث الواجهة ---
     function updateUI() {
         fetch('/get_status')
             .then(response => response.json())
             .then(data => {
                 sentenceDisplay.innerText = data.sentence || "";
 
-                // تحديث الحرف مع تأثير وميض إذا تغير
+                if (data.is_capturing !== isCapturing) {
+                    isCapturing = data.is_capturing;
+                    updateCaptureUI();
+                }
+
+                if (isCapturing) {
+                    detectedCharDisplay.innerText = `الحرف: ${data.detected_char || "..."}`;
+                }
+
                 if (data.detected_char && data.detected_char !== lastDetectedChar) {
-                    detectedCharDisplay.classList.remove('glow-pulse');
-                    void detectedCharDisplay.offsetWidth; // Trigger reflow
-                    detectedCharDisplay.classList.add('glow-pulse');
                     lastDetectedChar = data.detected_char;
                 }
-                detectedCharDisplay.innerText = `الحرف: ${data.detected_char || "..."}`;
-                if (data.suggestions && data.suggestions.length > 0) {
-                    suggestionsContainer.innerHTML = '';
-                    data.suggestions.forEach((sug, index) => {
-                        const pill = document.createElement('div');
-                        pill.className = 'suggestion-pill';
-                        if (index === 0) pill.classList.add('active');
-                        pill.innerText = sug;
-                        pill.onclick = () => selectSuggestion(sug);
-                        suggestionsContainer.appendChild(pill);
-                    });
-                } else {
-                    suggestionsContainer.innerHTML = '';
+
+                // إذا تغيرت الاقتراحات، نعيد ضبط المؤشر
+                if (JSON.stringify(data.suggestions) !== JSON.stringify(currentSuggestions)) {
+                    currentSuggestions = data.suggestions || [];
+                    activeSuggestionIndex = 0;
+                    renderPills();
                 }
             })
             .catch(err => console.error('Status fetch error:', err));
@@ -95,20 +146,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function selectSuggestion(word) {
         fetch(`/select_suggestion?word=${encodeURIComponent(word)}`, { method: 'POST' })
-            .then(() => updateUI());
+            .then(() => {
+                currentSuggestions = []; // مسح الاقتراحات بعد الاختيار
+                updateUI();
+            });
     }
 
     btnSpeak.onclick = () => { fetch('/speak', { method: 'POST' }); };
-
-    // حذف آخر حرف (Backspace)
-    btnClear.onclick = () => {
-        fetch('/clear', { method: 'POST' }).then(() => updateUI());
-    };
-
-    // مسح كل الجملة
-    btnClearAll.onclick = () => {
-        fetch('/clear_all', { method: 'POST' }).then(() => updateUI());
-    };
+    btnClear.onclick = () => { fetch('/clear', { method: 'POST' }).then(() => updateUI()); };
+    btnFinish.onclick = () => { fetch('/clear_all', { method: 'POST' }).then(() => updateUI()); };
 
     setInterval(updateUI, 300);
 });

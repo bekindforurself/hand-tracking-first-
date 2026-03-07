@@ -1,8 +1,7 @@
-import csv, copy, argparse, itertools, os, requests, json, threading, pygame, time, cv2 as cv, numpy as np, mediapipe as mp
+import csv, copy, argparse, itertools, os, requests, json, threading, pygame, time, cv2 as cv, numpy as np, mediapipe as mp, asyncio, edge_tts
 from flask import Flask, render_template, Response, jsonify, request
 import logging
 
-from gtts import gTTS
 from collections import Counter, deque
 from model import KeyPointClassifier
 
@@ -70,8 +69,10 @@ class GlobalState:
         self.suggestions = []
         self.last_stable_char = ""
         self.char_counter = 0
+        self.blink_counter = 0
         self.lock = threading.Lock()
         self.is_running = True
+        self.is_capturing = True # حالة الالتقاط مفعلة افتراضياً
         # إطار أولي فارغ لمنع الشاشة السوداء
         blank = np.zeros((480, 640, 3), dtype=np.uint8)
         _, buf = cv.imencode('.jpg', blank)
@@ -84,16 +85,26 @@ def speak_text(text):
     if not text.strip(): return
     def run():
         try:
-            tts = gTTS(text=text, lang='ar')
+            # استخدام صوت "سلمى" أو "زارية" للهجة فصيحة ومرحة طبيعية
+            VOICE = "ar-SA-ZariyahNeural" 
             temp_file = "temp_speech_web.mp3"
-            tts.save(temp_file)
+            
+            async def generate_speech():
+                communicate = edge_tts.Communicate(text, VOICE)
+                await communicate.save(temp_file)
+            
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(generate_speech())
+            loop.close()
+
             pygame.mixer.music.load(temp_file)
             pygame.mixer.music.play()
             while pygame.mixer.music.get_busy():
                 pygame.time.Clock().tick(10)
             pygame.mixer.music.unload()
             if os.path.exists(temp_file): os.remove(temp_file)
-        except Exception as e: print(f"TTS Error: {e}")
+        except Exception as e: print(f"Speech Engine Error: {e}")
     threading.Thread(target=run).start()
 
 # --- محرك المعالجة الخلفي ---
@@ -101,12 +112,20 @@ def detection_thread():
     global state
     print("[Camera] بدأ تشغيل الكاميرا...")
     try:
-        cap = cv.VideoCapture(0, cv.CAP_DSHOW)  # DirectShow for Windows USB cameras
-        cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
-        cap.set(cv.CAP_PROP_FPS, 30)
+        # محاولة فتح الكاميرا - التبديل التلقائي بين المدمجة والخارجية
+        camera_index = 0
+        if os.name == 'nt': # Windows
+            cap = cv.VideoCapture(camera_index, cv.CAP_DSHOW)
+        else: # Linux/Raspberry Pi
+            cap = cv.VideoCapture(camera_index)
+
         if not cap.isOpened():
-            print("[Camera] خطأ: لا يمكن فتح الكاميرا! تأكد أنها غير مستخدمة من برنامج آخر.")
+            print(f"[Camera] الكاميرا {camera_index} لم تفتح، نجرب الكاميرا التالية...")
+            camera_index = 1
+            cap = cv.VideoCapture(camera_index)
+            
+        if not cap.isOpened():
+            print("[Camera] خطأ: لا يمكن العثور على أي كاميرا!")
             return
         # قراءات تجريبية للإحماء
         for _ in range(5):
@@ -128,7 +147,7 @@ def detection_thread():
             results = hands.process(rgb_frame)
 
             char_found = ""
-            if results.multi_hand_landmarks:
+            if results.multi_hand_landmarks and state.is_capturing:
                 for hand_landmarks in results.multi_hand_landmarks:
                     # رسم خطوط التتبع (Skeleton) لرؤيتها في المتصفح يتم يدوياً في الأسفل لضمان النظافة بدون نقاط
                     
@@ -148,8 +167,27 @@ def detection_thread():
                     char_id = classifier(processed)
                     char_found = labels[char_id]
 
+                    # رسم المربع المحيط (Bounding Box) باللون الأسود
+                    x_min, y_min = min([p[0] for p in landmark_list]), min([p[1] for p in landmark_list])
+                    x_max, y_max = max([p[0] for p in landmark_list]), max([p[1] for p in landmark_list])
+                    cv.rectangle(frame, (x_min - 10, y_min - 10), (x_max + 10, y_max + 10), (0, 0, 0), 1)
+
+                    # تأثير الوميض من الداخل (Flash)
+                    if state.blink_counter > 0:
+                        overlay = frame.copy()
+                        cv.rectangle(overlay, (x_min - 10, y_min - 10), (x_max + 10, y_max + 10), (255, 255, 255), -1)
+                        cv.addWeighted(overlay, 0.4, frame, 0.6, 0, frame)
+                        state.blink_counter -= 1
+
+                    # رسم الخطوط (White Lines)
                     for i, j in [(2,3),(3,4),(5,6),(6,7),(7,8),(9,10),(10,11),(11,12),(13,14),(14,15),(15,16),(17,18),(18,19),(19,20),(0,1),(1,2),(2,5),(5,9),(9,13),(13,17),(17,0)]:
                         cv.line(frame, tuple(landmark_list[i]), tuple(landmark_list[j]), (255, 255, 255), 2)
+
+                    # رسم النقاط (White Circles)
+                    for index, point in enumerate(landmark_list):
+                        radius = 6 if index in [4, 8, 12, 16, 20] else 3
+                        cv.circle(frame, tuple(point), radius, (255, 255, 255), -1)
+                        cv.circle(frame, tuple(point), radius, (0, 0, 0), 1) # إطار أسود رقيق للنقطة لتمييزها
 
             with state.lock:
                 state.detected_char = char_found
@@ -166,6 +204,7 @@ def detection_thread():
                     else: state.word_buffer += char_found
                     state.suggestions = get_conversational_ai(state.word_buffer)
                     state.char_counter = 0
+                    state.blink_counter = 3 # مدة الوميض (3 إطارات)
 
             _, buffer = cv.imencode('.jpg', frame)
             state.current_frame = buffer.tobytes()
@@ -196,8 +235,15 @@ def get_status():
         return jsonify({
             "sentence": state.word_buffer,
             "detected_char": state.detected_char,
-            "suggestions": state.suggestions
+            "suggestions": state.suggestions,
+            "is_capturing": state.is_capturing
         })
+
+@app.route('/toggle_capture', methods=['POST'])
+def toggle_capture():
+    with state.lock:
+        state.is_capturing = not state.is_capturing
+    return jsonify({"status": "ok", "is_capturing": state.is_capturing})
 
 @app.route('/speak', methods=['POST'])
 def speak():

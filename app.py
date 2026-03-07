@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import csv, copy, argparse, itertools, os, requests, json, threading, pygame
-from gtts import gTTS
-
-
-from collections import Counter, deque
+import csv, copy, argparse, itertools, os, requests, json, threading, pygame, asyncio, edge_tts
 import cv2 as cv
 import numpy as np
 import mediapipe as mp
@@ -30,20 +26,27 @@ def speak_text(text):
     if not text.strip(): return
     def run():
         try:
-            tts = gTTS(text=text, lang='ar')
+            # صوت فتاة فصيحة ومرحة (Zariyah)
+            VOICE = "ar-SA-ZariyahNeural"
             temp_file = "temp_speech.mp3"
-            tts.save(temp_file)
             
+            async def generate_speech():
+                communicate = edge_tts.Communicate(text, VOICE)
+                await communicate.save(temp_file)
+            
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(generate_speech())
+            loop.close()
+
             pygame.mixer.music.load(temp_file)
             pygame.mixer.music.play()
             while pygame.mixer.music.get_busy():
                 pygame.time.Clock().tick(10)
-            
-            pygame.mixer.music.unload() # تحرير الملف للحذف
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
+            pygame.mixer.music.unload()
+            if os.path.exists(temp_file): os.remove(temp_file)
         except Exception as e:
-            print(f"Error playing sound: {e}")
+            print(f"Speech Engine Error: {e}")
             
     threading.Thread(target=run).start()
 
@@ -107,6 +110,7 @@ word_buffer = ""
 last_stable_char = ""
 char_counter = 0
 suggestions = []
+blink_counter = 0
 
 def draw_arabic_text(image, text, position, font, color=(255, 255, 255)):
     reshaped_text = arabic_reshaper.reshape(text)
@@ -121,8 +125,22 @@ def update_sugs(text):
     suggestions = get_conversational_ai(text)
 
 def main():
-    global word_buffer, last_stable_char, char_counter, suggestions
-    cap = cv.VideoCapture(0)
+    global word_buffer, last_stable_char, char_counter, suggestions, blink_counter
+    
+    # التعرف التلقائي على الكاميرا (ويندوز ورازبري باي)
+    camera_index = 0
+    if os.name == 'nt':
+        cap = cv.VideoCapture(camera_index, cv.CAP_DSHOW)
+    else:
+        cap = cv.VideoCapture(camera_index)
+
+    if not cap.isOpened():
+        camera_index = 1
+        cap = cv.VideoCapture(camera_index)
+        
+    if not cap.isOpened():
+        print("خطأ: لا يمكن العثور على كاميرا!")
+        return
     hands = mp.solutions.hands.Hands(max_num_hands=1, min_detection_confidence=0.7, min_tracking_confidence=0.5)
     classifier = KeyPointClassifier()
     with open('model/keypoint_classifier/keypoint_classifier_label.csv', encoding='utf-8-sig') as f:
@@ -190,11 +208,30 @@ def main():
                     if word_buffer.strip():
                         threading.Thread(target=update_sugs, args=(word_buffer,)).start()
                     char_counter = 0
+                    blink_counter = 3
 
+                # رسم المربع المحيط (Bounding Box) باللون الأسود
+                x_min, y_min = min([p[0] for p in landmark_list]), min([p[1] for p in landmark_list])
+                x_max, y_max = max([p[0] for p in landmark_list]), max([p[1] for p in landmark_list])
+                cv.rectangle(debug_image, (x_min - 10, y_min - 10), (x_max + 10, y_max + 10), (0, 0, 0), 1)
+
+                # تأثير الوميض من الداخل (Flash)
+                if blink_counter > 0:
+                    overlay = debug_image.copy()
+                    cv.rectangle(overlay, (x_min - 10, y_min - 10), (x_max + 10, y_max + 10), (255, 255, 255), -1)
+                    cv.addWeighted(overlay, 0.4, debug_image, 0.6, 0, debug_image)
+                    blink_counter -= 1
+
+                # رسم الخطوط (White Lines)
                 for i, j in [(2,3),(3,4),(5,6),(6,7),(7,8),(9,10),(10,11),(11,12),(13,14),(14,15),(15,16),(17,18),(18,19),(19,20),(0,1),(1,2),(2,5),(5,9),(9,13),(13,17),(17,0)]:
                     cv.line(debug_image, tuple(landmark_list[i]), tuple(landmark_list[j]), (255, 255, 255), 2)
-                for p in landmark_list:
-                    cv.circle(debug_image, tuple(p), 5, (0, 255, 0), -1)
+                
+                # رسم النقاط (White Circles)
+                for index, point in enumerate(landmark_list):
+                    radius = 6 if index in [4, 8, 12, 16, 20] else 3
+                    cv.circle(debug_image, tuple(point), radius, (255, 255, 255), -1)
+                    cv.circle(debug_image, tuple(point), radius, (0, 0, 0), 1)
+
 
         # واجهة التنبؤ (Gboard Style)
         if suggestions:
