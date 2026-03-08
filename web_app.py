@@ -70,6 +70,7 @@ class GlobalState:
         self.last_stable_char = ""
         self.char_counter = 0
         self.blink_counter = 0
+        self.stability_time = 0 # تتبع وقت ثبات الحرف
         self.lock = threading.Lock()
         self.is_running = True
         self.is_capturing = True # حالة الالتقاط مفعلة افتراضياً
@@ -192,19 +193,24 @@ def detection_thread():
             with state.lock:
                 state.detected_char = char_found
                 
+                # منطق ثبات الحرف - يجب أن يثبت الحرف لمدة 1.5 ثانية (للمبتدئين)
                 if char_found == state.last_stable_char and char_found != "":
-                    state.char_counter += 1
+                    if state.stability_time == 0:
+                        state.stability_time = time.time()
+                    
+                    # إذا مرت 1.0 ثانية من الثبات الكامل
+                    if time.time() - state.stability_time >= 1.0:
+                        if char_found == "مسافة": state.word_buffer += " "
+                        elif char_found == "حذف": state.word_buffer = state.word_buffer[:-1]
+                        else: state.word_buffer += char_found
+                        
+                        state.suggestions = get_conversational_ai(state.word_buffer)
+                        state.blink_counter = 3 # وميض للتأكيد
+                        state.stability_time = time.time() # البدء بالحساب للمرة القادمة إذا استمر بالثبات
                 else:
-                    state.char_counter = 0
+                    state.stability_time = 0
+                
                 state.last_stable_char = char_found
-
-                if state.char_counter == 18:
-                    if char_found == "مسافة": state.word_buffer += " "
-                    elif char_found == "حذف": state.word_buffer = state.word_buffer[:-1]
-                    else: state.word_buffer += char_found
-                    state.suggestions = get_conversational_ai(state.word_buffer)
-                    state.char_counter = 0
-                    state.blink_counter = 3 # مدة الوميض (3 إطارات)
 
             _, buffer = cv.imencode('.jpg', frame)
             state.current_frame = buffer.tobytes()

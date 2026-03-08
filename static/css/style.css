@@ -18,14 +18,30 @@
 
 body {
     font-family: 'Cairo', 'Inter', sans-serif;
-    background: linear-gradient(to right, #1e3c5a, #3a6a92, #f5f7fa, #ffffff);
+    background: linear-gradient(-45deg, #1a237e, #ffffff, #1a237e, #ffffff);
+    background-size: 400% 400%;
+    animation: gradientMove 15s ease infinite;
     background-attachment: fixed;
-    /* لضمان ثبات الخلفية عند التحريك */
     height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
     color: var(--text-dark);
+    overflow: hidden;
+}
+
+@keyframes gradientMove {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
 }
 
 .container {

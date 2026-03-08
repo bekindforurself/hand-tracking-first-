@@ -111,6 +111,7 @@ last_stable_char = ""
 char_counter = 0
 suggestions = []
 blink_counter = 0
+stability_time = 0
 
 def draw_arabic_text(image, text, position, font, color=(255, 255, 255)):
     reshaped_text = arabic_reshaper.reshape(text)
@@ -125,7 +126,7 @@ def update_sugs(text):
     suggestions = get_conversational_ai(text)
 
 def main():
-    global word_buffer, last_stable_char, char_counter, suggestions, blink_counter
+    global word_buffer, last_stable_char, char_counter, suggestions, blink_counter, stability_time
     
     # التعرف التلقائي على الكاميرا (ويندوز ورازبري باي)
     camera_index = 0
@@ -195,20 +196,25 @@ def main():
 
                 char_id = classifier(processed)
                 char = labels[char_id]
-
-                if char == last_stable_char and char != "": char_counter += 1
-                else: char_counter = 0
-                last_stable_char = char
-
-                if char_counter == 18:
-                    if char == "مسافة": word_buffer += " "
-                    elif char == "حذف": word_buffer = word_buffer[:-1]; suggestions = []
-                    else: word_buffer += char
+                
+                if char == last_stable_char and char != "":
+                    if stability_time == 0:
+                        stability_time = time.time()
                     
-                    if word_buffer.strip():
-                        threading.Thread(target=update_sugs, args=(word_buffer,)).start()
-                    char_counter = 0
-                    blink_counter = 3
+                    if time.time() - stability_time >= 1.0:
+                        if char == "مسافة": word_buffer += " "
+                        elif char == "حذف": word_buffer = word_buffer[:-1]; suggestions = []
+                        else: word_buffer += char
+                        
+                        if word_buffer.strip():
+                            threading.Thread(target=update_sugs, args=(word_buffer,)).start()
+                        
+                        stability_time = time.time()
+                        blink_counter = 3
+                else:
+                    stability_time = 0
+                
+                last_stable_char = char
 
                 # رسم المربع المحيط (Bounding Box) باللون الأسود
                 x_min, y_min = min([p[0] for p in landmark_list]), min([p[1] for p in landmark_list])
