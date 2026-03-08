@@ -87,7 +87,7 @@ def speak_text(text):
     def run():
         try:
             # استخدام صوت "سلمى" أو "زارية" للهجة فصيحة ومرحة طبيعية
-            VOICE = "ar-SA-ZariyahNeural" 
+            VOICE = "ar-SA-HamedNeural" 
             temp_file = "temp_speech_web.mp3"
             
             async def generate_speech():

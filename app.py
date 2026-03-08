@@ -10,7 +10,7 @@ from PIL import ImageFont, ImageDraw, Image
 from utils import CvFpsCalc
 from model import KeyPointClassifier
 
-# --- محرك التنبؤ الذكي "سنابل" (Conversational AI - Offline First) ---
+# --- محرك التنبؤ الذكي (Conversational AI - Offline First) ---
 CONVERSATION_FILE = "arabic_conversation.json"
 LOADED_DICT = {}
 if os.path.exists(CONVERSATION_FILE):
