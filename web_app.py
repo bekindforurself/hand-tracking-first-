@@ -1,4 +1,4 @@
-import csv, copy, argparse, itertools, os, requests, json, threading, pygame, time, cv2 as cv, numpy as np, mediapipe as mp, asyncio, edge_tts
+import csv, copy, argparse, itertools, os, requests, json, threading, pygame, time, socket, cv2 as cv, numpy as np, mediapipe as mp, asyncio, edge_tts
 from flask import Flask, render_template, Response, jsonify, request
 import logging
 
@@ -308,6 +308,26 @@ def shutdown():
     os._exit(0)
     return "Shutting down..."
 
+def get_ip_address():
+    """جلب عنوان الـ IP المحلي للجهاز"""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # لا يشترط وجود اتصال فعلي بهذا العنوان، فقط لفتح الـ socket
+        s.connect(('8.8.8.8', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return IP
+
 if __name__ == '__main__':
+    local_ip = get_ip_address()
+    print("\n" + "="*50)
+    print(f"🚀 Sign Language App is starting!")
+    print(f"🔗 Access it from any device on your network at:")
+    print(f"👉 http://{local_ip}:5000")
+    print("="*50 + "\n")
+    
     threading.Thread(target=detection_thread, daemon=True).start()
     app.run(host='0.0.0.0', port=5000, threaded=True)
