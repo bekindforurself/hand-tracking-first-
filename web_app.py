@@ -95,7 +95,9 @@ def speak_text(text):
         try:
             # استخدام صوت "سلمى" أو "زارية" للهجة فصيحة ومرحة طبيعية
             VOICE = "ar-SA-HamedNeural" 
-            temp_file = "temp_speech_web.mp3"
+            # استخدام المسار المطلق لضمان عثور mpg123 على الملف
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            temp_file = os.path.join(base_dir, "temp_speech_web.mp3")
             
             async def generate_speech():
                 communicate = edge_tts.Communicate(text, VOICE)
@@ -105,6 +107,13 @@ def speak_text(text):
             asyncio.set_event_loop(loop)
             loop.run_until_complete(generate_speech())
             loop.close()
+
+            # انتظار بسيط جداً لضمان اكتمال الكتابة على القرص (مهم للرازبري)
+            time.sleep(0.5)
+
+            if not os.path.exists(temp_file):
+                print(f"[Audio Error] الملف غير موجود: {temp_file}")
+                return
 
             # محاولة التشغيل باستخدام mpg123 مع إجباره على استخدام ALSA (أضمن وسيلة للرازبري)
             played = False
