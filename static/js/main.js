@@ -88,18 +88,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- تحديث الكاميرا كل 80ms ---
-    function refreshCamera() {
-        const newSrc = '/snapshot?t=' + Date.now();
-        const img = new Image();
-        img.onload = () => {
-            videoFeed.src = newSrc;
-            setTimeout(refreshCamera, 80);
-        };
-        img.onerror = () => setTimeout(refreshCamera, 200);
-        img.src = newSrc;
-    }
-    refreshCamera();
+    // --- تفعيل بث الفيديو المستمر (أسرع بكثير للرازبري باي) ---
+    videoFeed.src = '/video_feed';
 
     // دالة رسم الاقتراحات لضمان تحديث الـ active class فوراً
     function renderPills() {

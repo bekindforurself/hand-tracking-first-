@@ -221,8 +221,10 @@ def detection_thread():
                 
                 state.last_stable_char = char_found
 
-            _, buffer = cv.imencode('.jpg', frame)
-            state.current_frame = buffer.tobytes()
+            # ضغط الإطار فقط إذا كان هناك تغيير (لتقليل استهلاك المعالج)
+            _, buffer = cv.imencode('.jpg', frame, [cv.IMWRITE_JPEG_QUALITY, 80])
+            with state.lock:
+                state.current_frame = buffer.tobytes()
 
         cap.release()
         print("[Camera] تم إيقاف الكاميرا.")
@@ -235,14 +237,24 @@ def detection_thread():
 def index():
     return render_template('index.html')
 
+@app.route('/video_feed')
+def video_feed():
+    """مسار بث الفيديو المباشر (MJPEG)"""
+    def generate():
+        while True:
+            with state.lock:
+                frame = state.current_frame
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            time.sleep(0.03) # حوالي 30 فريم في الثانية حد أقصى
+            
+    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
 @app.route('/snapshot')
 def snapshot():
     """إرجاع إطار واحد من الكاميرا كصورة JPEG"""
-    response = Response(state.current_frame, mimetype='image/jpeg')
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    return response
+    with state.lock:
+        return Response(state.current_frame, mimetype='image/jpeg')
 
 @app.route('/get_status')
 def get_status():
