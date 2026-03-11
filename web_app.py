@@ -149,6 +149,7 @@ def detection_thread():
         
         frame_count = 0
         cooldown_until = 0 # منع القراءة المتكررة للحروف بسبب البطء
+        last_results = None # حفظ آخر نتيجة لعرضها في الإطارات المخففة
 
         while state.is_running:
             ret, frame = cap.read()
@@ -161,12 +162,12 @@ def detection_thread():
             # معالجة يد واحدة كل 3 إطارات لتوفير طاقة المعالج بشكل هائل
             if frame_count % 3 == 0:
                 rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-                results = hands.process(rgb_frame)
-            else:
-                results = None
+                last_results = hands.process(rgb_frame)
+            
+            results = last_results
 
             char_found = ""
-            if results.multi_hand_landmarks and state.is_capturing:
+            if results and results.multi_hand_landmarks and state.is_capturing:
                 for hand_landmarks in results.multi_hand_landmarks:
                     # رسم خطوط التتبع (Skeleton) لرؤيتها في المتصفح يتم يدوياً في الأسفل لضمان النظافة بدون نقاط
                     
