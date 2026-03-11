@@ -264,6 +264,42 @@ body {
     transform: translateX(-50%);
 }
 
+/* Responsive Adjustments */
+@media (max-width: 1024px) {
+    .container {
+        flex-direction: column;
+        height: auto;
+        min-height: 100vh;
+        width: 100vw;
+        border-radius: 0;
+        padding: 15px;
+    }
+    
+    .camera-section, .translation-section {
+        flex: none;
+        width: 100%;
+    }
+
+    .sentence-display {
+        font-size: 3rem;
+        min-height: 100px;
+    }
+}
+
+@media (max-width: 600px) {
+    .sentence-display {
+        font-size: 2rem;
+    }
+    
+    .controls-section {
+        flex-direction: column;
+    }
+    
+    .btn {
+        width: 100%;
+    }
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;
