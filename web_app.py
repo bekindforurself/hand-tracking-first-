@@ -80,9 +80,16 @@ class GlobalState:
         self.current_frame = buf.tobytes()
 
 state = GlobalState()
-pygame.mixer.init()
+# إعداد الصوت للرازبري باي
+if os.name != 'nt': # Linux/RPi
+    os.environ['SDL_AUDIODRIVER'] = 'alsa' # استخدام Linux ALSA
 
-def speak_text(text):
+try:
+    pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
+except Exception as e:
+    print(f"[Audio] تعذر تهيئة Mixer: {e}")
+
+def speak_text_sync(text):
     if not text.strip(): return
     def run():
         try:
