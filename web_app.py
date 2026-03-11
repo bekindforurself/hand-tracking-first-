@@ -89,7 +89,7 @@ try:
 except Exception as e:
     print(f"[Audio] تعذر تهيئة Mixer: {e}")
 
-def speak_text_sync(text):
+def speak_text(text):
     if not text.strip(): return
     def run():
         try:
