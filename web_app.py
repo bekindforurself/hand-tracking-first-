@@ -125,9 +125,9 @@ def detection_thread():
             camera_index = 1
             cap = cv.VideoCapture(camera_index)
             
-        # ضبط دقة الكاميرا لتحسين الأداء على الرازبري باي
-        cap.set(cv.CAP_PROP_FRAME_WIDTH, 480)
-        cap.set(cv.CAP_PROP_FRAME_HEIGHT, 360)
+        # استعادة الدقة القياسية للجمالية مع الحفاظ على سرعة المعالجة
+        cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
         cap.set(cv.CAP_PROP_FPS, 30)
 
         # قراءات تجريبية للإحماء
@@ -193,19 +193,22 @@ def detection_thread():
                     x_max, y_max = max([p[0] for p in landmark_list]), max([p[1] for p in landmark_list])
                     cv.rectangle(frame, (x_min - 10, y_min - 10), (x_max + 10, y_max + 10), (0, 0, 0), 1)
 
-                    # تم إزالة تأثير الوميض الثقيل (Flash) لتوفير المعالج
+                    # تأثير الوميض الخفيف (High-Performance Flash)
                     if state.blink_counter > 0:
+                        # بدلاً من نسخ الإطار بالكامل، نقوم بتفتيح منطقة اليد فقط
+                        frame[y_min:y_max, x_min:x_max] = cv.addWeighted(frame[y_min:y_max, x_min:x_max], 0.7, 
+                                                                        np.full(frame[y_min:y_max, x_min:x_max].shape, 255, dtype=np.uint8), 0.3, 0)
                         state.blink_counter -= 1
 
-                    # رسم الخطوط (White Lines)
+                    # رسم الخطوط (Antialiased White Lines)
                     for i, j in [(2,3),(3,4),(5,6),(6,7),(7,8),(9,10),(10,11),(11,12),(13,14),(14,15),(15,16),(17,18),(18,19),(19,20),(0,1),(1,2),(2,5),(5,9),(9,13),(13,17),(17,0)]:
-                        cv.line(frame, tuple(landmark_list[i]), tuple(landmark_list[j]), (255, 255, 255), 2)
+                        cv.line(frame, tuple(landmark_list[i]), tuple(landmark_list[j]), (255, 255, 255), 2, cv.LINE_AA)
 
-                    # رسم النقاط (White Circles)
+                    # رسم النقاط (Antialiased White Circles)
                     for index, point in enumerate(landmark_list):
                         radius = 6 if index in [4, 8, 12, 16, 20] else 3
-                        cv.circle(frame, tuple(point), radius, (255, 255, 255), -1)
-                        cv.circle(frame, tuple(point), radius, (0, 0, 0), 1) # إطار أسود رقيق للنقطة لتمييزها
+                        cv.circle(frame, tuple(point), radius, (255, 255, 255), -1, cv.LINE_AA)
+                        cv.circle(frame, tuple(point), radius, (0, 0, 0), 1, cv.LINE_AA)
 
             with state.lock:
                 state.detected_char = char_found
