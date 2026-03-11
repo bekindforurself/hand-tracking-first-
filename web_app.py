@@ -106,23 +106,27 @@ def speak_text(text):
             loop.run_until_complete(generate_speech())
             loop.close()
 
-            # محاولة التشغيل باستخدام mpg123 (الأفضل للرازبري باي)
+            # محاولة التشغيل باستخدام mpg123 مع إجباره على استخدام ALSA (أضمن وسيلة للرازبري)
             played = False
             if os.name != 'nt': # Linux/RPi
                 import subprocess
                 try:
-                    subprocess.run(["mpg123", "-q", temp_file], check=True)
+                    # -o alsa تجبره على استخدام نفس تعريف aplay الذي نجح معك
+                    subprocess.run(["mpg123", "-o", "alsa", "-q", temp_file], check=True)
                     played = True
-                except:
-                    pass
+                except Exception as e:
+                    print(f"[Audio] mpg123 failed: {e}")
             
             # إذا لم يعمل mpg123 أو كنا على وندوز، نستخدم pygame
             if not played:
-                pygame.mixer.music.load(temp_file)
-                pygame.mixer.music.play()
-                while pygame.mixer.music.get_busy():
-                    pygame.time.Clock().tick(10)
-                pygame.mixer.music.unload()
+                try:
+                    pygame.mixer.music.load(temp_file)
+                    pygame.mixer.music.play()
+                    while pygame.mixer.music.get_busy():
+                        pygame.time.Clock().tick(10)
+                    pygame.mixer.music.unload()
+                except Exception as e:
+                    print(f"[Audio] pygame failed: {e}")
 
             if os.path.exists(temp_file): os.remove(temp_file)
         except Exception as e: 
