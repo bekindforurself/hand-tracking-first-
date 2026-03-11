@@ -125,15 +125,23 @@ def detection_thread():
             camera_index = 1
             cap = cv.VideoCapture(camera_index)
             
-        if not cap.isOpened():
-            print("[Camera] خطأ: لا يمكن العثور على أي كاميرا!")
-            return
+        # ضبط دقة الكاميرا لتحسين الأداء على الرازبري باي
+        cap.set(cv.CAP_PROP_FRAME_WIDTH, 480)
+        cap.set(cv.CAP_PROP_FRAME_HEIGHT, 360)
+        cap.set(cv.CAP_PROP_FPS, 30)
+
         # قراءات تجريبية للإحماء
         for _ in range(5):
             cap.read()
 
-        hands = mp.solutions.hands.Hands(max_num_hands=1, min_detection_confidence=0.7, min_tracking_confidence=0.5)
-        classifier = KeyPointClassifier()
+        # تحسين إعدادات MediaPipe للعمل بسرعة أكبر (Complexity=0 هو الأخف)
+        hands = mp.solutions.hands.Hands(
+            max_num_hands=1, 
+            min_detection_confidence=0.7, 
+            min_tracking_confidence=0.5,
+            model_complexity=0 
+        )
+        classifier = KeyPointClassifier(num_threads=4) # استخدام 4 أنوية للمعالجة
         with open('model/keypoint_classifier/keypoint_classifier_label.csv', encoding='utf-8-sig') as f:
             labels = [row[0] for row in csv.reader(f)]
 
