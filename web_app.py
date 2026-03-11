@@ -146,14 +146,24 @@ def detection_thread():
             labels = [row[0] for row in csv.reader(f)]
 
         print("[Camera] الكاميرا تعمل بنجاح ✓")
+        
+        frame_count = 0
+        cooldown_until = 0 # منع القراءة المتكررة للحروف بسبب البطء
 
         while state.is_running:
             ret, frame = cap.read()
             if not ret:
                 continue
+            
+            frame_count += 1
             frame = cv.flip(frame, 1)
-            rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-            results = hands.process(rgb_frame)
+            
+            # معالجة يد واحدة كل 3 إطارات لتوفير طاقة المعالج بشكل هائل
+            if frame_count % 3 == 0:
+                rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+                results = hands.process(rgb_frame)
+            else:
+                results = None
 
             char_found = ""
             if results.multi_hand_landmarks and state.is_capturing:
@@ -182,11 +192,8 @@ def detection_thread():
                     x_max, y_max = max([p[0] for p in landmark_list]), max([p[1] for p in landmark_list])
                     cv.rectangle(frame, (x_min - 10, y_min - 10), (x_max + 10, y_max + 10), (0, 0, 0), 1)
 
-                    # تأثير الوميض من الداخل (Flash)
+                    # تم إزالة تأثير الوميض الثقيل (Flash) لتوفير المعالج
                     if state.blink_counter > 0:
-                        overlay = frame.copy()
-                        cv.rectangle(overlay, (x_min - 10, y_min - 10), (x_max + 10, y_max + 10), (255, 255, 255), -1)
-                        cv.addWeighted(overlay, 0.4, frame, 0.6, 0, frame)
                         state.blink_counter -= 1
 
                     # رسم الخطوط (White Lines)
@@ -207,11 +214,13 @@ def detection_thread():
                     if state.stability_time == 0:
                         state.stability_time = time.time()
                     
-                    # إذا مرت 1.0 ثانية من الثبات الكامل
-                    if time.time() - state.stability_time >= 1.0:
+                    # إذا مرت 1.5 ثانية من الثبات الكامل (زادت لضمان الدقة مع البطء)
+                    if time.time() - state.stability_time >= 1.5 and time.time() > cooldown_until:
                         if char_found == "مسافة": state.word_buffer += " "
                         elif char_found == "حذف": state.word_buffer = state.word_buffer[:-1]
                         else: state.word_buffer += char_found
+                        
+                        cooldown_until = time.time() + 2.0 # قفل القراءة لمدة ثانيتين لمنع التكرار الخطأ
                         
                         state.suggestions = get_conversational_ai(state.word_buffer)
                         state.blink_counter = 3 # وميض للتأكيد
