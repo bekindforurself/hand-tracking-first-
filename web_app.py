@@ -153,8 +153,9 @@ def detection_thread():
                     # رسم خطوط التتبع (Skeleton) لرؤيتها في المتصفح يتم يدوياً في الأسفل لضمان النظافة بدون نقاط
                     
                     landmark_list = []
+                    h, w, _ = frame.shape
                     for landmark in hand_landmarks.landmark:
-                        landmark_list.append([min(int(landmark.x * 640), 639), min(int(landmark.y * 480), 479)])
+                        landmark_list.append([min(int(landmark.x * w), w - 1), min(int(landmark.y * h), h - 1)])
 
                     temp = copy.deepcopy(landmark_list)
                     base_x, base_y = temp[0][0], temp[0][1]
