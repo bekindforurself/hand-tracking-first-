@@ -106,13 +106,28 @@ def speak_text_sync(text):
             loop.run_until_complete(generate_speech())
             loop.close()
 
-            pygame.mixer.music.load(temp_file)
-            pygame.mixer.music.play()
-            while pygame.mixer.music.get_busy():
-                pygame.time.Clock().tick(10)
-            pygame.mixer.music.unload()
+            # محاولة التشغيل باستخدام mpg123 (الأفضل للرازبري باي)
+            played = False
+            if os.name != 'nt': # Linux/RPi
+                import subprocess
+                try:
+                    subprocess.run(["mpg123", "-q", temp_file], check=True)
+                    played = True
+                except:
+                    pass
+            
+            # إذا لم يعمل mpg123 أو كنا على وندوز، نستخدم pygame
+            if not played:
+                pygame.mixer.music.load(temp_file)
+                pygame.mixer.music.play()
+                while pygame.mixer.music.get_busy():
+                    pygame.time.Clock().tick(10)
+                pygame.mixer.music.unload()
+
             if os.path.exists(temp_file): os.remove(temp_file)
-        except Exception as e: print(f"Speech Engine Error: {e}")
+        except Exception as e: 
+            print(f"[Audio Error] فشل محرك الصوت: {e}")
+            if os.path.exists(temp_file): os.remove(temp_file)
     threading.Thread(target=run).start()
 
 # --- محرك المعالجة الخلفي ---
