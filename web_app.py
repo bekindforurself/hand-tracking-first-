@@ -159,10 +159,11 @@ def detection_thread():
             frame_count += 1
             frame = cv.flip(frame, 1)
             
-            # معالجة يد واحدة كل 3 إطارات لتوفير طاقة المعالج بشكل هائل
-            if frame_count % 3 == 0:
-                rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-                last_results = hands.process(rgb_frame)
+            # الطريقة السحرية: معالجة صورة مصغرة للذكاء الاصطناعي مع الحفاظ على وضوح العرض
+            # هذا سيرفع السرعة بشكل كبير جداً (320x240 للصورة التي يتم تحليلها)
+            if frame_count % 2 == 0: # تقليل التخطي لجعل الحركة أنعم
+                small_rgb = cv.resize(cv.cvtColor(frame, cv.COLOR_BGR2RGB), (320, 240))
+                last_results = hands.process(small_rgb)
             
             results = last_results
 
