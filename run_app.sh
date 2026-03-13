@@ -1,11 +1,14 @@
 #!/bin/bash
 # سكريبت التشغيل السريع لتطبيق مترجم لغة الإشارة
-echo "🚀 جاري ضبط مخرج الصوت (PCM)..."
+echo "🚀 جاري ضبط وإعداد الصوت (HDMI & Audio Jack)..."
 
-# فتح الصوت ورفعه للحد الأقصى لمخرج PCM المكتشف في جهازك
-amixer sset 'PCM' 100% unmute >/dev/null 2>&1
-amixer -c 0 sset 'PCM' 100% unmute >/dev/null 2>&1
-amixer -c 1 sset 'PCM' 100% unmute >/dev/null 2>&1
+# جلب أسماء المتحكمات المتوفرة في النظام لفتحها جميعاً
+# هذا سيضمن فتح الصوت سواء كنت تستخدم HDMI أو سماعة خارجية (Headphone/PCM)
+for control in "PCM" "HDMI" "Headphone" "Master" "Speaker"; do
+    amixer sset "$control" 100% unmute >/dev/null 2>&1
+    amixer -c 0 sset "$control" 100% unmute >/dev/null 2>&1
+    amixer -c 1 sset "$control" 100% unmute >/dev/null 2>&1
+done
 
 echo "🚀 جاري تشغيل مترجم لغة الإشارة..."
 cd "$(dirname "$0")"
