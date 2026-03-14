@@ -1,4 +1,57 @@
-import csv, copy, argparse, itertools, os, requests, json, threading, pygame, time, socket, cv2 as cv, numpy as np, mediapipe as mp, asyncio, edge_tts
+import csv, copy, itertools, os, requests, json, threading, pygame, time, socket, cv2 as cv, numpy as np, asyncio, edge_tts
+import mediapipe as mp
+from mediapipe.tasks import python as mp_python
+from mediapipe.tasks.python import vision as mp_vision
+from mediapipe.tasks.python.vision.core.image import Image as MpImage, ImageFormat
+
+# --- Hands Wrapper using new Tasks API (mediapipe 0.10+) ---
+class _HandLandmark:
+    def __init__(self, x, y, z):
+        self.x, self.y, self.z = x, y, z
+
+class _HandLandmarks:
+    def __init__(self, lms):
+        self.landmark = lms
+
+class _HandsResult:
+    def __init__(self, multi_hand_landmarks):
+        self.multi_hand_landmarks = multi_hand_landmarks or []
+
+class Hands:
+    """Wrapper حول mediapipe HandLandmarker الجديد يحاكي واجهة solutions.hands.Hands القديمة"""
+    _MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task"
+    _MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hand_landmarker.task")
+
+    def __init__(self, max_num_hands=1, min_detection_confidence=0.7, min_tracking_confidence=0.5, model_complexity=0):
+        if not os.path.exists(self._MODEL_PATH):
+            print("[MediaPipe] تنزيل نموذج اليد... (مرة واحدة فقط)")
+            import urllib.request
+            urllib.request.urlretrieve(self._MODEL_URL, self._MODEL_PATH)
+            print("[MediaPipe] تم تنزيل النموذج ✓")
+        base_options = mp_python.BaseOptions(model_asset_path=self._MODEL_PATH)
+        options = mp_vision.HandLandmarkerOptions(
+            base_options=base_options,
+            num_hands=max_num_hands,
+            min_hand_detection_confidence=min_detection_confidence,
+            min_hand_presence_confidence=min_tracking_confidence,
+            min_tracking_confidence=min_tracking_confidence,
+            running_mode=mp_vision.RunningMode.IMAGE
+        )
+        self._detector = mp_vision.HandLandmarker.create_from_options(options)
+
+    def process(self, rgb_frame):
+        mp_image = MpImage(image_format=ImageFormat.SRGB, data=rgb_frame)
+        detection_result = self._detector.detect(mp_image)
+        if not detection_result.hand_landmarks:
+            return _HandsResult(None)
+        multi = []
+        for hand in detection_result.hand_landmarks:
+            lms = [_HandLandmark(lm.x, lm.y, lm.z) for lm in hand]
+            multi.append(_HandLandmarks(lms))
+        return _HandsResult(multi)
+
+    def close(self):
+        self._detector.close()
 from flask import Flask, render_template, Response, jsonify, request
 import logging
 
@@ -149,28 +202,54 @@ def detection_thread():
     print("[Camera] بدأ تشغيل الكاميرا...")
     try:
         # محاولة فتح الكاميرا - التبديل التلقائي بين المدمجة والخارجية
-        camera_index = 0
-        if os.name == 'nt': # Windows
-            cap = cv.VideoCapture(camera_index, cv.CAP_DSHOW)
-        else: # Linux/Raspberry Pi
-            cap = cv.VideoCapture(camera_index)
+        # فتح الكاميرا - يجرب عدة backends تلقائياً حتى يجد صورة فعلية
+        cap = None
+        camera_found = False
+        backends_to_try = []
+        if os.name == 'nt':  # Windows
+            backends_to_try = [
+                (0, cv.CAP_MSMF, "MSMF"),
+                (0, cv.CAP_ANY, "AUTO"),
+                (0, cv.CAP_DSHOW, "DSHOW"),
+                (1, cv.CAP_MSMF, "MSMF-1"),
+                (1, cv.CAP_ANY, "AUTO-1"),
+            ]
+        else:  # Linux/RPi
+            backends_to_try = [(0, cv.CAP_ANY, "AUTO"), (1, cv.CAP_ANY, "AUTO-1")]
 
-        if not cap.isOpened():
-            print(f"[Camera] الكاميرا {camera_index} لم تفتح، نجرب الكاميرا التالية...")
-            camera_index = 1
-            cap = cv.VideoCapture(camera_index)
+        for cam_idx, backend, bname in backends_to_try:
+            try:
+                c = cv.VideoCapture(cam_idx, backend)
+                if c.isOpened():
+                    ret, frame = c.read()
+                    if ret and frame is not None:
+                        cap = c
+                        camera_index = cam_idx
+                        print(f"[Camera] تم اكتشاف الكاميرا {cam_idx} [{bname}] ✓")
+                        camera_found = True
+                        break
+                    else:
+                        c.release()
+                else:
+                    c.release()
+            except Exception:
+                pass
+
+        if not camera_found or cap is None:
+            print("[Camera] ❌ لم يتم اكتشاف أي كاميرا! تأكد من توصيل الكاميرا والسماح للبرنامج باستخدامها.")
+            return
             
-        # استعادة الدقة القياسية للجمالية مع الحفاظ على سرعة المعالجة
-        cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
-        cap.set(cv.CAP_PROP_FPS, 30)
+        # دقة أخف للحصول على أداء أفضل على اللابتوب
+        cap.set(cv.CAP_PROP_FRAME_WIDTH, 480)
+        cap.set(cv.CAP_PROP_FRAME_HEIGHT, 360)
+        cap.set(cv.CAP_PROP_FPS, 20)
 
         # قراءات تجريبية للإحماء
-        for _ in range(5):
+        for _ in range(3):
             cap.read()
 
-        # تحسين إعدادات MediaPipe للعمل بسرعة أكبر (Complexity=0 هو الأخف)
-        hands = mp.solutions.hands.Hands(
+        # تهيئة MediaPipe Hands (باستخدام Tasks API الجديدة)
+        hands = Hands(
             max_num_hands=1, 
             min_detection_confidence=0.7, 
             min_tracking_confidence=0.5,
@@ -186,40 +265,50 @@ def detection_thread():
         cooldown_until = 0 # منع القراءة المتكررة للحروف بسبب البطء
         last_results = None # حفظ آخر نتيجة لعرضها في الإطارات المخففة
 
+        # إعدادات الأداء والجودة - فصل تام بين الويندوز والرازبري باي
+        IS_WINDOWS = os.name == 'nt'
+        if IS_WINDOWS:
+            FRAME_SKIP = 1       # سرعة قصوى - معالجة كل إطار
+            AI_SIZE = (480, 360) # نسخة ذهبية: أبعاد أكبر لدقة أعلى في التعرف
+            STREAM_QUALITY = 85  # توازن الجودة
+        else:
+            FRAME_SKIP = 3       # توفير طاقة للرازبري باي
+            AI_SIZE = (256, 192) # دقة منخفضة للذكاء الاصطناعي
+            STREAM_QUALITY = 55  # جودة مضغوطة للشبكة
+
         while state.is_running:
             ret, frame = cap.read()
             if not ret:
+                time.sleep(0.01)
                 continue
             
             frame_count += 1
             frame = cv.flip(frame, 1)
             
-            # الطريقة السحرية: معالجة صورة مصغرة للذكاء الاصطناعي مع الحفاظ على وضوح العرض
-            # هذا سيرفع السرعة بشكل كبير جداً (320x240 للصورة التي يتم تحليلها)
-            if frame_count % 2 == 0: # تقليل التخطي لجعل الحركة أنعم
-                small_rgb = cv.resize(cv.cvtColor(frame, cv.COLOR_BGR2RGB), (320, 240))
-                last_results = hands.process(small_rgb)
+            # المعالجة: وندوز يعالج كل شيء، الرازبري يتخطى
+            if frame_count % FRAME_SKIP == 0:
+                if AI_SIZE:
+                    small_rgb = cv.resize(cv.cvtColor(frame, cv.COLOR_BGR2RGB), AI_SIZE)
+                    last_results = hands.process(small_rgb)
+                else:
+                    # نسخة الويندوز الذهبية: معالجة الإطار بالحجم الكامل لأقصى دقة
+                    last_results = hands.process(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
             
             results = last_results
 
             char_found = ""
             if results and results.multi_hand_landmarks and state.is_capturing:
                 for hand_landmarks in results.multi_hand_landmarks:
-                    # رسم خطوط التتبع (Skeleton) لرؤيتها في المتصفح يتم يدوياً في الأسفل لضمان النظافة بدون نقاط
-                    
-                    landmark_list = []
                     h, w, _ = frame.shape
-                    for landmark in hand_landmarks.landmark:
-                        landmark_list.append([min(int(landmark.x * w), w - 1), min(int(landmark.y * h), h - 1)])
+                    # numpy أسرع بكثير من deepcopy + itertools
+                    lm_arr = np.array([[min(int(lm.x * w), w-1), min(int(lm.y * h), h-1)]
+                                       for lm in hand_landmarks.landmark], dtype=np.float32)
+                    landmark_list = lm_arr.astype(int).tolist()
 
-                    temp = copy.deepcopy(landmark_list)
-                    base_x, base_y = temp[0][0], temp[0][1]
-                    for i in range(len(temp)):
-                        temp[i][0] -= base_x
-                        temp[i][1] -= base_y
-                    flat = list(itertools.chain.from_iterable(temp))
-                    max_val = max(list(map(abs, flat)))
-                    processed = [n / (max_val if max_val != 0 else 1) for n in flat]
+                    norm = lm_arr - lm_arr[0]          # طرح نقطة الأساس
+                    flat = norm.flatten()
+                    max_val = np.abs(flat).max()
+                    processed = (flat / max_val if max_val != 0 else flat).tolist()
 
                     char_id = classifier(processed)
                     char_found = labels[char_id]
@@ -229,18 +318,27 @@ def detection_thread():
                     x_max, y_max = max([p[0] for p in landmark_list]), max([p[1] for p in landmark_list])
                     cv.rectangle(frame, (x_min - 10, y_min - 10), (x_max + 10, y_max + 10), (0, 0, 0), 1)
 
-                    # تأثير الوميض الخفيف (High-Performance Flash)
                     if state.blink_counter > 0:
-                        # بدلاً من نسخ الإطار بالكامل، نقوم بتفتيح منطقة اليد فقط
-                        frame[y_min:y_max, x_min:x_max] = cv.addWeighted(frame[y_min:y_max, x_min:x_max], 0.7, 
-                                                                        np.full(frame[y_min:y_max, x_min:x_max].shape, 255, dtype=np.uint8), 0.3, 0)
+                        if IS_WINDOWS:
+                            # الوميض الذهبي الفائق: وميض منطقة اليد فقط لمنع الـ Lag
+                            # بدلاً من نسخ الإطار بالكامل، نقوم بتفتيح منطقة اليد فقط
+                            roi = frame[max(0, y_min-10):min(frame.shape[0], y_max+10), 
+                                        max(0, x_min-10):min(frame.shape[1], x_max+10)]
+                            if roi.size > 0:
+                                white_rect = np.full(roi.shape, 255, dtype=np.uint8)
+                                frame[max(0, y_min-10):min(frame.shape[0], y_max+10), 
+                                      max(0, x_min-10):min(frame.shape[1], x_max+10)] = cv.addWeighted(roi, 0.5, white_rect, 0.5, 0)
+                        else:
+                            # الوميض المخفف للرازبري
+                            frame[y_min:y_max, x_min:x_max] = cv.addWeighted(frame[y_min:y_max, x_min:x_max], 0.6, 
+                                                                            np.full(frame[y_min:y_max, x_min:x_max].shape, 255, dtype=np.uint8), 0.4, 0)
                         state.blink_counter -= 1
 
-                    # رسم الخطوط (Antialiased White Lines)
+                    # رسم الخطوط (Classic White Skeleton)
                     for i, j in [(2,3),(3,4),(5,6),(6,7),(7,8),(9,10),(10,11),(11,12),(13,14),(14,15),(15,16),(17,18),(18,19),(19,20),(0,1),(1,2),(2,5),(5,9),(9,13),(13,17),(17,0)]:
                         cv.line(frame, tuple(landmark_list[i]), tuple(landmark_list[j]), (255, 255, 255), 2, cv.LINE_AA)
 
-                    # رسم النقاط (Antialiased White Circles)
+                    # رسم النقاط (Classic White Circles)
                     for index, point in enumerate(landmark_list):
                         radius = 6 if index in [4, 8, 12, 16, 20] else 3
                         cv.circle(frame, tuple(point), radius, (255, 255, 255), -1, cv.LINE_AA)
@@ -249,31 +347,56 @@ def detection_thread():
             with state.lock:
                 state.detected_char = char_found
                 
-                # منطق ثبات الحرف - يجب أن يثبت الحرف لمدة 1.5 ثانية (للمبتدئين)
-                if char_found == state.last_stable_char and char_found != "":
-                    if state.stability_time == 0:
-                        state.stability_time = time.time()
+                if IS_WINDOWS:
+                    # منطق الثبات الكلاسيكي (Golden Approach) - عداد الفريمات
+                    if char_found == state.last_stable_char and char_found != "":
+                        state.char_counter += 1
+                    else:
+                        state.char_counter = 0
                     
-                    # إذا مرت 1.5 ثانية من الثبات الكامل (زادت لضمان الدقة مع البطء)
-                    if time.time() - state.stability_time >= 1.5 and time.time() > cooldown_until:
-                        if char_found == "مسافة": state.word_buffer += " "
-                        elif char_found == "حذف": state.word_buffer = state.word_buffer[:-1]
-                        else: state.word_buffer += char_found
+                    # 12 إطار ثبات = طباعة فورية وسريعة جداً (حوالي 0.4 ثانية)
+                    if state.char_counter >= 12:
+                        # تحويل 'أ' إلى 'ا' بناءً على طلبك
+                        final_char = char_found
+                        if final_char == "أ": final_char = "ا"
                         
-                        cooldown_until = time.time() + 2.0 # قفل القراءة لمدة ثانيتين لمنع التكرار الخطأ
+                        if final_char == "مسافة": state.word_buffer += " "
+                        elif final_char == "حذف": state.word_buffer = state.word_buffer[:-1]
+                        else: state.word_buffer += final_char
                         
-                        state.suggestions = get_conversational_ai(state.word_buffer)
-                        state.blink_counter = 3 # وميض للتأكيد
-                        state.stability_time = time.time() # البدء بالحساب للمرة القادمة إذا استمر بالثبات
+                        # الطريقة الذهبية: تشغيل التنبؤ في خلفية منفصلة لمنع الـ Lag
+                        def update_suggestions_bg(buffer):
+                            res = get_conversational_ai(buffer)
+                            with state.lock:
+                                state.suggestions = res
+                        threading.Thread(target=update_suggestions_bg, args=(state.word_buffer,), daemon=True).start()
+                        
+                        state.blink_counter = 3
+                        state.char_counter = 0
                 else:
-                    state.stability_time = 0
+                    # منطق الثبات للرازبري - مبني على الوقت لمواجهة تذبذب الفريمات
+                    if char_found == state.last_stable_char and char_found != "":
+                        if state.stability_time == 0: state.stability_time = time.time()
+                        if time.time() - state.stability_time >= 1.5 and time.time() > cooldown_until:
+                            if char_found == "مسافة": state.word_buffer += " "
+                            elif char_found == "حذف": state.word_buffer = state.word_buffer[:-1]
+                            else: state.word_buffer += char_found
+                            cooldown_until = time.time() + 2.0
+                            state.suggestions = get_conversational_ai(state.word_buffer)
+                            state.blink_counter = 3
+                            state.stability_time = time.time()
+                    else:
+                        state.stability_time = 0
                 
                 state.last_stable_char = char_found
 
-            # ضغط الإطار فقط إذا كان هناك تغيير (لتقليل استهلاك المعالج)
-            _, buffer = cv.imencode('.jpg', frame, [cv.IMWRITE_JPEG_QUALITY, 80])
+            # ضغط الإطار بالجودة المناسبة
+            _, buffer = cv.imencode('.jpg', frame, [cv.IMWRITE_JPEG_QUALITY, STREAM_QUALITY])
             with state.lock:
                 state.current_frame = buffer.tobytes()
+
+            # استراحة قصيرة جداً لمنع ثقل المعالج (مهمة جداً للسرعة)
+            time.sleep(0.001)
 
         cap.release()
         print("[Camera] تم إيقاف الكاميرا.")
@@ -295,7 +418,7 @@ def video_feed():
                 frame = state.current_frame
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-            time.sleep(0.03) # حوالي 30 فريم في الثانية حد أقصى
+            time.sleep(0.05) # 20 إطار/ثانية - مناسب للأداء
             
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
