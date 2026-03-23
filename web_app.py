@@ -246,8 +246,13 @@ def detection_thread():
                         cv.circle(frame, tuple(point), radius, (255, 255, 255), -1, cv.LINE_AA)
                         cv.circle(frame, tuple(point), radius, (0, 0, 0), 1, cv.LINE_AA)
 
+            # تحويل الحروف حسب طلب المستخدم (للـ UI وللملف النصي)
+            final_char = char_found
+            if final_char == "أ": final_char = "ا"
+            if final_char == "مسافة": final_char = "ئ"
+
             with state.lock:
-                state.detected_char = char_found
+                state.detected_char = final_char
                 
                 # منطق ثبات الحرف - يجب أن يثبت الحرف لمدة 1.5 ثانية (للمبتدئين)
                 if char_found == state.last_stable_char and char_found != "":
@@ -256,9 +261,9 @@ def detection_thread():
                     
                     # إذا مرت 1.5 ثانية من الثبات الكامل (زادت لضمان الدقة مع البطء)
                     if time.time() - state.stability_time >= 1.5 and time.time() > cooldown_until:
-                        if char_found == "مسافة": state.word_buffer += " "
-                        elif char_found == "حذف": state.word_buffer = state.word_buffer[:-1]
-                        else: state.word_buffer += char_found
+                        if final_char == "مسافة": state.word_buffer += " "
+                        elif final_char == "حذف" or char_found == "حذف": state.word_buffer = state.word_buffer[:-1]
+                        else: state.word_buffer += final_char
                         
                         cooldown_until = time.time() + 2.0 # قفل القراءة لمدة ثانيتين لمنع التكرار الخطأ
                         
