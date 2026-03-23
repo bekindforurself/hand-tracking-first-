@@ -344,8 +344,13 @@ def detection_thread():
                         cv.circle(frame, tuple(point), radius, (255, 255, 255), -1, cv.LINE_AA)
                         cv.circle(frame, tuple(point), radius, (0, 0, 0), 1, cv.LINE_AA)
 
+            # تحويل الحروف حسب طلب المستخدم (للـ UI وللملف النصي)
+            final_char = char_found
+            if final_char == "أ": final_char = "ا"
+            if final_char == "مسافة": final_char = "ئ"
+
             with state.lock:
-                state.detected_char = char_found
+                state.detected_char = final_char
                 
                 if IS_WINDOWS:
                     # منطق الثبات الكلاسيكي (Golden Approach) - عداد الفريمات
@@ -356,12 +361,8 @@ def detection_thread():
                     
                     # 12 إطار ثبات = طباعة فورية وسريعة جداً (حوالي 0.4 ثانية)
                     if state.char_counter >= 12:
-                        # تحويل 'أ' إلى 'ا' بناءً على طلبك
-                        final_char = char_found
-                        if final_char == "أ": final_char = "ا"
-                        
                         if final_char == "مسافة": state.word_buffer += " "
-                        elif final_char == "حذف": state.word_buffer = state.word_buffer[:-1]
+                        elif final_char == "حذف" or char_found == "حذف": state.word_buffer = state.word_buffer[:-1]
                         else: state.word_buffer += final_char
                         
                         # الطريقة الذهبية: تشغيل التنبؤ في خلفية منفصلة لمنع الـ Lag
@@ -378,9 +379,10 @@ def detection_thread():
                     if char_found == state.last_stable_char and char_found != "":
                         if state.stability_time == 0: state.stability_time = time.time()
                         if time.time() - state.stability_time >= 1.5 and time.time() > cooldown_until:
-                            if char_found == "مسافة": state.word_buffer += " "
-                            elif char_found == "حذف": state.word_buffer = state.word_buffer[:-1]
-                            else: state.word_buffer += char_found
+                            if final_char == "مسافة": state.word_buffer += " "
+                            elif final_char == "حذف" or char_found == "حذف": state.word_buffer = state.word_buffer[:-1]
+                            else: state.word_buffer += final_char
+                            
                             cooldown_until = time.time() + 2.0
                             state.suggestions = get_conversational_ai(state.word_buffer)
                             state.blink_counter = 3
