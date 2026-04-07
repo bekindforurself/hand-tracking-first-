@@ -5,6 +5,38 @@ import logging
 from collections import Counter, deque
 from model import KeyPointClassifier
 
+# --- Hands Wrapper using new Tasks API (mediapipe 0.10+) ---
+# This wrapper mimics the old solutions.hands.Hands interface for minimal code changes.
+from mediapipe.tasks.python import vision
+from mediapipe import Image as MpImage, ImageFormat
+
+class _HandLandmark:
+    def __init__(self, x, y, z): self.x, self.y, self.z = x, y, z
+class _HandLandmarks:
+    def __init__(self, lms): self.landmark = lms
+class _HandsResult:
+    def __init__(self, multi_hand_landmarks):
+        self.multi_hand_landmarks = multi_hand_landmarks or []
+
+class Hands:
+    def __init__(self, max_num_hands=1, min_detection_confidence=0.7, min_tracking_confidence=0.5, model_complexity=0):
+        base_options = mp.tasks.BaseOptions(model_asset_path='hand_landmarker.task')
+        options = vision.HandLandmarkerOptions(
+            base_options=base_options,
+            num_hands=max_num_hands,
+            min_hand_detection_confidence=min_detection_confidence,
+            min_hand_presence_confidence=min_tracking_confidence
+        )
+        self._detector = vision.HandLandmarker.create_from_options(options)
+    def process(self, rgb_image):
+        mp_image = MpImage(image_format=ImageFormat.SRGB, data=rgb_image)
+        res = self._detector.detect(mp_image)
+        if not res or not res.hand_landmarks: return _HandsResult(None)
+        multi = []
+        for lms in res.hand_landmarks:
+            multi.append(_HandLandmarks([_HandLandmark(l.x, l.y, l.z) for l in lms]))
+        return _HandsResult(multi)
+
 app = Flask(__name__)
 
 # إخفاء سجلات HTTP المتكررة لإبقاء التيرمنال نظيف
@@ -170,7 +202,7 @@ def detection_thread():
             cap.read()
 
         # تحسين إعدادات MediaPipe للعمل بسرعة أكبر (Complexity=0 هو الأخف)
-        hands = mp.solutions.hands.Hands(
+        hands = Hands(
             max_num_hands=1, 
             min_detection_confidence=0.7, 
             min_tracking_confidence=0.5,
