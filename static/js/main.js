@@ -77,16 +77,44 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'KeyF': // إنهاء الجملة (مسح الكل)
                 fetch('/clear_all', { method: 'POST' }).then(() => updateUI());
                 break;
-            case 'Digit1': case 'Numpad1':
-            case 'Digit2': case 'Numpad2':
-            case 'Digit3': case 'Numpad3':
-            case 'Digit4': case 'Numpad4':
-                const idx = parseInt(e.key) - 1;
-                const pills = document.querySelectorAll('.suggestion-pill');
-                if (pills[idx]) pills[idx].click();
+            case 'Digit0': case 'Numpad0': recordNumber(0); break;
+            case 'Digit1': case 'Numpad1': recordNumber(1); break;
+            case 'Digit2': case 'Numpad2': recordNumber(2); break;
+            case 'Digit3': case 'Numpad3': recordNumber(3); break;
+            case 'Digit4': case 'Numpad4': recordNumber(4); break;
+            case 'Digit5': case 'Numpad5': recordNumber(5); break;
+            case 'Digit6': case 'Numpad6': recordNumber(6); break;
+            case 'Digit7': case 'Numpad7': recordNumber(7); break;
+            case 'Digit8': case 'Numpad8': recordNumber(8); break;
+            case 'Digit9': case 'Numpad9': recordNumber(9); break;
+            case 'KeyX': recordNumber(10); break;
+            case 'KeyY': 
+                fetch('/record_now?label=38&type=single', { method: 'POST' });
+                showToast("جاري تسجيل: ئ");
                 break;
         }
     });
+
+    function recordNumber(n) {
+        fetch(`/record_now?label=${n}&type=dual`, { method: 'POST' });
+        showToast(`جاري تسجيل الرقم: ${n}`);
+    }
+
+    function showToast(message) {
+        const toast = document.createElement('div');
+        toast.style.position = 'fixed';
+        toast.style.bottom = '20px';
+        toast.style.left = '50%';
+        toast.style.transform = 'translateX(-50%)';
+        toast.style.background = 'rgba(0,0,0,0.8)';
+        toast.style.color = '#fff';
+        toast.style.padding = '10px 25px';
+        toast.style.borderRadius = '30px';
+        toast.style.zIndex = '9999';
+        toast.innerText = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 1000);
+    }
 
     // --- تفعيل بث الفيديو المستمر (أسرع بكثير للرازبري باي) ---
     videoFeed.src = '/video_feed';
@@ -116,8 +144,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateCaptureUI();
                 }
 
-                if (isCapturing) {
+                // التعامل مع وضع اليدين (الأرقام)
+                if (data.two_hand_mode) {
+                    detectedCharDisplay.innerText = "وضع الأرقام 🔢";
+                    detectedCharDisplay.style.color = "#ff9800"; // لون برتقالي مميز للوضعية
+                } else if (isCapturing) {
                     detectedCharDisplay.innerText = `الحرف: ${data.detected_char || "..."}`;
+                    detectedCharDisplay.style.color = "white";
                 }
 
                 if (data.detected_char && data.detected_char !== lastDetectedChar) {
