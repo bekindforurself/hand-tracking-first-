@@ -111,6 +111,9 @@ class GlobalState:
         _, buf = cv.imencode('.jpg', blank)
         self.current_frame = buf.tobytes()
 
+
+
+
 state = GlobalState()
 # إعداد الصوت للرازبري باي
 if os.name != 'nt': # Linux/RPi
@@ -178,7 +181,7 @@ def speak_text(text):
 # --- محرك المعالجة الخلفي ---
 def detection_thread():
     global state
-    print("[Camera] بدأ تشغيل الكاميرا...")
+    print("[Camera] Starting camera...")
     try:
         # محاولة فتح الكاميرا - التبديل التلقائي بين المدمجة والخارجية
         camera_index = 0
@@ -188,7 +191,7 @@ def detection_thread():
             cap = cv.VideoCapture(camera_index)
 
         if not cap.isOpened():
-            print(f"[Camera] الكاميرا {camera_index} لم تفتح، نجرب الكاميرا التالية...")
+            print("[Camera] Error: Cannot open camera! Trying next index...")
             camera_index = 1
             cap = cv.VideoCapture(camera_index)
             
@@ -212,7 +215,7 @@ def detection_thread():
         with open('model/keypoint_classifier/keypoint_classifier_label.csv', encoding='utf-8-sig') as f:
             labels = [row[0] for row in csv.reader(f)]
 
-        print("[Camera] الكاميرا تعمل بنجاح ✓")
+        print("[Camera] Camera is working successfully")
         
         frame_count = 0
         cooldown_until = 0 # منع القراءة المتكررة للحروف بسبب البطء
@@ -278,10 +281,10 @@ def detection_thread():
                         cv.circle(frame, tuple(point), radius, (255, 255, 255), -1, cv.LINE_AA)
                         cv.circle(frame, tuple(point), radius, (0, 0, 0), 1, cv.LINE_AA)
 
-            # تحويل الحروف حسب طلب المستخدم (للـ UI وللملف النصي)
+            # تحويل الحروف حسب طلب المستخدم
             final_char = char_found
             if final_char == "أ": final_char = "ا"
-            if final_char == "مسافة": final_char = "ئ"
+            # تم حذف تحويل المسافة إلى 'ئ' لتعمل كمسافة حقيقية
 
             with state.lock:
                 state.detected_char = final_char
@@ -309,13 +312,14 @@ def detection_thread():
 
             # ضغط الإطار فقط إذا كان هناك تغيير (لتقليل استهلاك المعالج)
             _, buffer = cv.imencode('.jpg', frame, [cv.IMWRITE_JPEG_QUALITY, 80])
+            
             with state.lock:
                 state.current_frame = buffer.tobytes()
 
         cap.release()
-        print("[Camera] تم إيقاف الكاميرا.")
+        print("[Camera] Camera stopped.")
     except Exception as e:
-        print(f"[Camera] خطأ في الـ detection thread: {e}")
+        print(f"[Camera] Error in detection thread: {e}")
         import traceback; traceback.print_exc()
 
 # --- مسارات Flask ---
@@ -431,9 +435,9 @@ def get_ip_address():
 if __name__ == '__main__':
     local_ip = get_ip_address()
     print("\n" + "="*50)
-    print(f"🚀 Sign Language App is starting!")
-    print(f"🔗 Access it from any device on your network at:")
-    print(f"👉 http://{local_ip}:5000")
+    print(f"Sign Language App is starting!")
+    print(f"Access it from any device on your network at:")
+    print(f"http://{local_ip}:5000")
     print("="*50 + "\n")
     
     threading.Thread(target=detection_thread, daemon=True).start()
