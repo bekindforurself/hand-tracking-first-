@@ -99,11 +99,11 @@ def pre_process_landmarks(landmark_list):
 def detection_thread():
     global state
     try:
-        # تعديل الكاميرا لتدعم ويندوز والرازبري باي معاً
+        # تحديد الكاميرا
         if os.name == 'nt':
-            cap = cv.VideoCapture(0, cv.CAP_DSHOW) # لويندوز
+            cap = cv.VideoCapture(0, cv.CAP_DSHOW)
         else:
-            cap = cv.VideoCapture(0) # للرازبري باي
+            cap = cv.VideoCapture(0)
             
         cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
         cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
@@ -122,14 +122,18 @@ def detection_thread():
                 num_labels = [row[0] for row in csv.reader(f)]
 
         cooldown_until = 0
+        frame_count = 0 # لحساب تخطي الإطارات
 
         while state.is_running:
             ret, frame = cap.read()
             if not ret: continue
             frame = cv.flip(frame, 1)
             
+            frame_count += 1
             char_found = ""
-            if state.is_capturing:
+
+            # معالجة كل إطارين فقط لزيادة السرعة على الرازبري باي
+            if state.is_capturing and (frame_count % 2 == 0):
                 rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
                 results = hands.process(rgb_frame)
                 
@@ -179,10 +183,13 @@ def detection_thread():
                                     all_pts.extend(pre_process_landmarks(hl))
                                 logging_csv(state.record_label, all_pts, filename='model/keypoint_classifier/keypoint_numbers.csv')
                             state.record_label = -1
-            else:
+            elif not state.is_capturing:
                 cv.putText(frame, "Capture Paused", (230, 240), cv.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
             with state.lock:
+                # إذا لم يكن هناك معالجة لهذا الإطار، نحافظ على الحرف السابق لمنع الوميض
+                if char_found == "": char_found = state.detected_char
+
                 state.detected_char = char_found
                 if char_found == state.last_stable_char and char_found != "":
                     if state.stability_time == 0: state.stability_time = time.time()
