@@ -65,7 +65,8 @@ def speak_text(text):
     if not text.strip(): return
     def run():
         try:
-            VOICE = "ar-SA-ZariyahNeural"
+            # إعادة الصوت الرجالي الاحترافي (حامد) ارضاءً لذوقك
+            VOICE = "ar-SA-HamedNeural"
             temp_file = f"temp_speech_{int(time.time())}.mp3"
             async def generate():
                 communicate = edge_tts.Communicate(text, VOICE)
@@ -99,7 +100,6 @@ def pre_process_landmarks(landmark_list):
 def detection_thread():
     global state
     try:
-        # الأداء الأقصى للابتوب
         cap = cv.VideoCapture(0, cv.CAP_DSHOW)
         cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
         cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
