@@ -65,7 +65,6 @@ def speak_text(text):
     if not text.strip(): return
     def run():
         try:
-            # إعادة الصوت الرجالي الاحترافي (حامد) ارضاءً لذوقك
             VOICE = "ar-SA-HamedNeural"
             temp_file = f"temp_speech_{int(time.time())}.mp3"
             async def generate():
@@ -99,8 +98,16 @@ def pre_process_landmarks(landmark_list):
 
 def detection_thread():
     global state
+    cap = None
     try:
-        cap = cv.VideoCapture(0, cv.CAP_DSHOW)
+        # البحث عن أفضل كاميرا متاحة (يحاول 1 أولاً للكاميرا الخارجية، ثم 0 للمدمجة)
+        for idx in [1, 0, 2]:
+            if os.name == 'nt':
+                cap = cv.VideoCapture(idx, cv.CAP_DSHOW)
+            else:
+                cap = cv.VideoCapture(idx)
+            if cap.isOpened(): break
+
         cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
         cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
         
@@ -140,12 +147,9 @@ def detection_thread():
                         for landmark in hand_landmarks.landmark:
                             landmark_list.append([min(int(landmark.x * 640), 639), min(int(landmark.y * 480), 479)])
                         
-                        # سكيلتون أبيض
                         for i, j in [(2,3),(3,4),(5,6),(6,7),(7,8),(9,10),(10,11),(11,12),(13,14),(14,15),(15,16),(17,18),(18,19),(19,20),(0,1),(1,2),(2,5),(5,9),(9,13),(13,17),(17,0)]:
                             cv.line(frame, tuple(landmark_list[i]), tuple(landmark_list[j]), (255, 255, 255), 2)
-                        
-                        tips = [4, 8, 12, 16, 20]
-                        for idx in tips:
+                        for idx in [4, 8, 12, 16, 20]:
                             cv.circle(frame, tuple(landmark_list[idx]), 6, (0, 165, 255), -1)
 
                         all_raw_hands_data.append(landmark_list)
