@@ -18,7 +18,7 @@ class _HandsResult:
         self.multi_hand_landmarks = multi_hand_landmarks or []
 
 class Hands:
-    def __init__(self, max_num_hands=2, min_detection_confidence=0.5, min_tracking_confidence=0.5):
+    def __init__(self, max_num_hands=2, min_detection_confidence=0.7, min_tracking_confidence=0.5):
         base_options = mp.tasks.BaseOptions(model_asset_path='hand_landmarker.task')
         options = vision.HandLandmarkerOptions(
             base_options=base_options,
@@ -84,7 +84,7 @@ def logging_csv(number, landmark_list, filename='model/keypoint_classifier/keypo
         writer = csv.writer(f)
         writer.writerow([number, *landmark_list])
 
-def pre_process_landmarks(landmark_list, w=640, h=480):
+def pre_process_landmarks(landmark_list):
     temp_landmark_list = copy.deepcopy(landmark_list)
     base_x, base_y = temp_landmark_list[0][0], temp_landmark_list[0][1]
     for i in range(len(temp_landmark_list)):
@@ -99,19 +99,12 @@ def pre_process_landmarks(landmark_list, w=640, h=480):
 def detection_thread():
     global state
     try:
-        is_windows = (os.name == 'nt')
-        if is_windows:
-            cap = cv.VideoCapture(0, cv.CAP_DSHOW)
-            W, H = 640, 480
-        else:
-            cap = cv.VideoCapture(0)
-            W, H = 320, 240
-            
-        cap.set(cv.CAP_PROP_FRAME_WIDTH, W)
-        cap.set(cv.CAP_PROP_FRAME_HEIGHT, H)
+        # الأداء الأقصى للابتوب
+        cap = cv.VideoCapture(0, cv.CAP_DSHOW)
+        cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
         
-        # تقليل عتبة الرصد (min_detection_confidence) إلى 0.4 لزيادة فرصة رصد اليدين المتقاربتين
-        hands = Hands(max_num_hands=2, min_detection_confidence=0.4)
+        hands = Hands(max_num_hands=2)
         classifier = KeyPointClassifier()
         num_classifier = None
         if os.path.exists('model/keypoint_classifier/keypoint_numbers_classifier.tflite'):
@@ -125,66 +118,68 @@ def detection_thread():
                 num_labels = [row[0] for row in csv.reader(f)]
 
         cooldown_until = 0
-        frame_count = 0
 
         while state.is_running:
             ret, frame = cap.read()
             if not ret: continue
             frame = cv.flip(frame, 1)
             
-            frame_count += 1
             char_found = ""
 
             if state.is_capturing:
-                if is_windows or (frame_count % 3 == 0):
-                    rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-                    results = hands.process(rgb_frame)
-                    
-                    if results.multi_hand_landmarks:
-                        num_hands = len(results.multi_hand_landmarks)
-                        state.two_hand_mode = (num_hands == 2)
-                        all_raw_hands_data = []
+                rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+                results = hands.process(rgb_frame)
+                
+                if results.multi_hand_landmarks:
+                    num_hands = len(results.multi_hand_landmarks)
+                    state.two_hand_mode = (num_hands == 2)
+                    all_raw_hands_data = []
 
-                        # رسم السكيلتون وحساب البيانات
-                        hand_processed_count = 0
-                        for hand_landmarks in results.multi_hand_landmarks:
-                            landmark_list = []
-                            for landmark in hand_landmarks.landmark:
-                                landmark_list.append([min(int(landmark.x * W), W-1), min(int(landmark.y * H), H-1)])
-                            
-                            # رسم السكيلتون النقاط دائماً للتأكد من الرصد
-                            for i, j in [(2,3),(3,4),(5,6),(6,7),(7,8),(9,10),(10,11),(11,12),(13,14),(14,15),(15,16),(17,18),(18,19),(19,20),(0,1),(1,2),(2,5),(5,9),(9,13),(13,17),(17,0)]:
-                                cv.line(frame, tuple(landmark_list[i]), tuple(landmark_list[j]), (255, 255, 255), 2)
-                            for idx in [4, 8, 12, 16, 20]:
-                                cv.circle(frame, tuple(landmark_list[idx]), 4, (0, 165, 255), -1)
+                    for hand_landmarks in results.multi_hand_landmarks:
+                        landmark_list = []
+                        for landmark in hand_landmarks.landmark:
+                            landmark_list.append([min(int(landmark.x * 640), 639), min(int(landmark.y * 480), 479)])
+                        
+                        # سكيلتون أبيض
+                        for i, j in [(2,3),(3,4),(5,6),(6,7),(7,8),(9,10),(10,11),(11,12),(13,14),(14,15),(15,16),(17,18),(18,19),(19,20),(0,1),(1,2),(2,5),(5,9),(9,13),(13,17),(17,0)]:
+                            cv.line(frame, tuple(landmark_list[i]), tuple(landmark_list[j]), (255, 255, 255), 2)
+                        
+                        tips = [4, 8, 12, 16, 20]
+                        for idx in tips:
+                            cv.circle(frame, tuple(landmark_list[idx]), 6, (0, 165, 255), -1)
 
-                            all_raw_hands_data.append(landmark_list)
-                            hand_processed_count += 1
+                        all_raw_hands_data.append(landmark_list)
 
-                        # منطق الفصل الصارم:
-                        if num_hands == 2 and num_classifier and len(all_raw_hands_data) == 2:
-                            # وضع الأرقام (تجاهل الحروف تماماً)
-                            dual_pts = []
-                            for h_pts in all_raw_hands_data:
-                                dual_pts.extend(pre_process_landmarks(h_pts, W, H))
-                            num_id = num_classifier(dual_pts)
-                            if num_id < len(num_labels):
-                                char_found = num_labels[num_id]
-                        elif num_hands == 1:
-                            # وضع الحروف (تجاهل الأرقام)
-                            processed = pre_process_landmarks(all_raw_hands_data[0], W, H)
-                            char_id = classifier(processed)
-                            raw_char = labels[char_id] if char_id < len(labels) else ""
-                            if raw_char == "أ": raw_char = "ا"
-                            char_found = raw_char
-                            landmark_out = processed
-                    else:
-                        state.two_hand_mode = False
-                        char_found = ""
+                    if state.two_hand_mode and num_classifier and len(all_raw_hands_data) == 2:
+                        dual_pts = []
+                        for h_pts in all_raw_hands_data:
+                            dual_pts.extend(pre_process_landmarks(h_pts))
+                        num_id = num_classifier(dual_pts)
+                        if num_id < len(num_labels):
+                            char_found = num_labels[num_id]
+                    elif len(all_raw_hands_data) == 1:
+                        processed = pre_process_landmarks(all_raw_hands_data[0])
+                        char_id = classifier(processed)
+                        raw_char = labels[char_id] if char_id < len(labels) else ""
+                        if raw_char == "أ": raw_char = "ا"
+                        char_found = raw_char
+                        landmark_out = processed
+
+                    with state.lock:
+                        if state.record_label != -1:
+                            if not state.two_hand_mode and state.record_type == "single":
+                                logging_csv(state.record_label, landmark_out)
+                            elif state.two_hand_mode and state.record_type == "dual" and len(all_raw_hands_data) == 2:
+                                all_pts = []
+                                for hl in all_raw_hands_data:
+                                    all_pts.extend(pre_process_landmarks(hl))
+                                logging_csv(state.record_label, all_pts, filename='model/keypoint_classifier/keypoint_numbers.csv')
+                            state.record_label = -1
                 else:
-                    char_found = state.detected_char
+                    state.two_hand_mode = False
+                    char_found = ""
             else:
-                cv.putText(frame, "Capture Paused", (int(W/4), int(H/2)), cv.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                cv.putText(frame, "Capture Paused", (230, 240), cv.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
             with state.lock:
                 state.detected_char = char_found
