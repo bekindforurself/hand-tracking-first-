@@ -99,7 +99,12 @@ def pre_process_landmarks(landmark_list):
 def detection_thread():
     global state
     try:
-        cap = cv.VideoCapture(0, cv.CAP_DSHOW)
+        # تعديل الكاميرا لتدعم ويندوز والرازبري باي معاً
+        if os.name == 'nt':
+            cap = cv.VideoCapture(0, cv.CAP_DSHOW) # لويندوز
+        else:
+            cap = cv.VideoCapture(0) # للرازبري باي
+            
         cap.set(cv.CAP_PROP_FRAME_WIDTH, 640)
         cap.set(cv.CAP_PROP_FRAME_HEIGHT, 480)
         
@@ -142,11 +147,9 @@ def detection_thread():
                         for i, j in [(2,3),(3,4),(5,6),(6,7),(7,8),(9,10),(10,11),(11,12),(13,14),(14,15),(15,16),(17,18),(18,19),(19,20),(0,1),(1,2),(2,5),(5,9),(9,13),(13,17),(17,0)]:
                             cv.line(frame, tuple(landmark_list[i]), tuple(landmark_list[j]), (255, 255, 255), 2)
                         
-                        # إضافة نقاط عند أطراف الأصابع (الجمالية المطلوبة)
                         tips = [4, 8, 12, 16, 20]
                         for idx in tips:
-                            cv.circle(frame, tuple(landmark_list[idx]), 6, (0, 165, 255), -1) # لون برتقالي مميز للأطراف
-                            cv.circle(frame, tuple(landmark_list[idx]), 7, (255, 255, 255), 1) # هالة بيضاء حولها
+                            cv.circle(frame, tuple(landmark_list[idx]), 6, (0, 165, 255), -1)
 
                         if not state.two_hand_mode:
                             processed = pre_process_landmarks(landmark_list)
@@ -166,7 +169,6 @@ def detection_thread():
                         if num_id < len(num_labels):
                             char_found = num_labels[num_id]
 
-                    # تسجيل البيانات
                     with state.lock:
                         if state.record_label != -1:
                             if not state.two_hand_mode and state.record_type == "single":
