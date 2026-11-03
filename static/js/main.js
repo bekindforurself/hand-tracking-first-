@@ -1,183 +1,194 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const sentenceDisplay = document.getElementById('sentence-display');
-    const detectedCharDisplay = document.getElementById('detected-char');
-    const suggestionsContainer = document.getElementById('suggestions');
-    const btnSpeak = document.getElementById('btn-speak');
-    const btnClear = document.getElementById('btn-clear');
-    const btnFinish = document.getElementById('btn-finish');
-    const btnToggleCapture = document.getElementById('btn-toggle-capture');
-    const videoFeed = document.getElementById('video-feed');
+    // ===================== DOM REFS =====================
+    const sentenceDisplay   = document.getElementById('sentence-display');
+    const btnSpeak          = document.getElementById('btn-speak');
+    const btnClearChar      = document.getElementById('btn-clear-char');
+    const btnClear          = document.getElementById('btn-clear');
+    const btnToggleCapture  = document.getElementById('btn-toggle-capture');
+    const progressRing      = document.getElementById('progress-ring');
+    const charCenter        = document.getElementById('char-center');
+    const statusChar        = document.getElementById('status-char');
+    const statusState       = document.getElementById('status-state');
+    const confirmToast      = document.getElementById('confirm-toast');
+    const toastChar         = document.getElementById('toast-char');
+    const twoHandBadge      = document.getElementById('two-hand-badge');
 
-    let lastDetectedChar = "";
-    let activeSuggestionIndex = 0; // المؤشر الحالي للاقتراحات
-    let currentSuggestions = [];
-    let isCapturing = true;
+    // ===================== STATE =====================
+    let isCapturing         = true;
+    let lastSentence        = '';
+    let lastDetectedChar    = '';
+    let toastTimeout        = null;
+    const CIRCUMFERENCE     = 2 * Math.PI * 26; // ≈ 163.4
 
+    // ===================== PROGRESS RING =====================
+    function setRingProgress(pct, mode) {
+        const offset = CIRCUMFERENCE - (pct / 100) * CIRCUMFERENCE;
+        progressRing.style.strokeDashoffset = offset;
 
-    // تبديل حالة الالتقاط
-    function toggleCapture() {
-        fetch('/toggle_capture', { method: 'POST' })
-            .then(res => res.json())
-            .then(data => {
-                isCapturing = data.is_capturing;
-                updateCaptureUI();
-            });
+        progressRing.classList.remove('complete', 'cooldown', 'number');
+        if (mode === 'complete')  progressRing.classList.add('complete');
+        else if (mode === 'cooldown') progressRing.classList.add('cooldown');
+        else if (mode === 'number')   progressRing.classList.add('number');
     }
 
-    function updateCaptureUI() {
-        if (isCapturing) {
-            btnToggleCapture.classList.remove('inactive');
-            btnToggleCapture.classList.add('active');
-            btnToggleCapture.innerHTML = '<i class="fas fa-video"></i>';
-            detectedCharDisplay.style.display = 'block';
+    // ===================== STATUS INDICATOR =====================
+    function updateStatusIndicator(data) {
+        const char = data.detected_char;
+        const prog = data.stability_progress || 0;
+        const cool = data.is_cooldown || false;
+        const two  = data.two_hand_mode;
+
+        // Two-hand mode badge
+        twoHandBadge.classList.toggle('visible', two);
+
+        if (!isCapturing) {
+            setRingProgress(0, '');
+            charCenter.textContent = '⏸';
+            statusChar.textContent = '—';
+            updateStateLabel('waiting', 'متوقف مؤقتاً');
+            return;
+        }
+
+        // Cooldown: still show the last char but with orange ring
+        if (cool) {
+            setRingProgress(100, 'cooldown');
+            if (char) {
+                charCenter.textContent = char;
+                statusChar.textContent = char;
+            }
+            updateStateLabel('cooldown', '⏳ جاهز للتالي');
+            return;
+        }
+
+        if (!char) {
+            setRingProgress(0, '');
+            charCenter.textContent = two ? '#' : '?';
+            statusChar.textContent = two ? 'ضع اليدين' : '—';
+            updateStateLabel('waiting', two ? 'في انتظار إشارة الرقم' : 'في انتظار الإشارة');
+            return;
+        }
+
+        charCenter.textContent = char;
+        statusChar.textContent = two ? `#${char}` : char;
+
+        // Orange ring for numbers, blue for letters
+        const ringMode = prog >= 100 ? 'complete' : (two ? 'number' : '');
+
+        if (prog >= 100) {
+            setRingProgress(100, 'complete');
+            updateStateLabel('done', '✓ تم التسجيل');
+        } else if (prog > 0) {
+            setRingProgress(prog, two ? 'number' : '');
+            updateStateLabel('progress', `ثبّت يدك… ${Math.round(prog)}%`);
         } else {
-            btnToggleCapture.classList.remove('active');
-            btnToggleCapture.classList.add('inactive');
-            btnToggleCapture.innerHTML = '<i class="fas fa-video-slash"></i>';
-            detectedCharDisplay.style.display = 'none';
+            setRingProgress(0, '');
+            updateStateLabel('waiting', 'في انتظار الثبات');
         }
     }
 
-    btnToggleCapture.onclick = toggleCapture;
+    function updateStateLabel(mode, text) {
+        statusState.className = 'status-state';
+        if (mode === 'waiting')   statusState.classList.add('waiting');
+        else if (mode === 'done') statusState.classList.add('done');
+        else if (mode === 'cooldown') statusState.classList.add('cooldown');
 
-    // --- اختصارات لوحة المفاتيح ---
+        statusState.innerHTML = `<span class="dot-pulse"></span>${text}`;
+    }
+
+    // ===================== SENTENCE DISPLAY =====================
+    function renderSentence(sentence) {
+        if (sentence === lastSentence) return;
+
+        const prev = lastSentence;
+        lastSentence = sentence;
+
+        // Render as plain text so Arabic letters join correctly
+        sentenceDisplay.innerText = sentence;
+
+        // If new chars were added → flash glow animation
+        if (sentence.length > prev.length) {
+            const newChar = sentence.slice(prev.length).trim();
+            sentenceDisplay.classList.remove('sentence-flash');
+            // Force reflow to restart animation
+            void sentenceDisplay.offsetWidth;
+            sentenceDisplay.classList.add('sentence-flash');
+
+            // Show toast for the last confirmed real character
+            if (newChar && newChar !== ' ') {
+                showConfirmToast(newChar[newChar.length - 1]);
+            }
+        }
+    }
+
+    // ===================== CONFIRM TOAST =====================
+    function showConfirmToast(char) {
+        clearTimeout(toastTimeout);
+        toastChar.textContent = char;
+        confirmToast.classList.remove('hide');
+        confirmToast.classList.add('show');
+        toastTimeout = setTimeout(() => {
+            confirmToast.classList.replace('show', 'hide');
+        }, 700);
+    }
+
+    // ===================== CAPTURE TOGGLE =====================
+    function updateCaptureUI() {
+        if (isCapturing) {
+            btnToggleCapture.classList.replace('inactive', 'active');
+            btnToggleCapture.innerHTML = '<i class="fas fa-video"></i>';
+        } else {
+            btnToggleCapture.classList.replace('active', 'inactive');
+            btnToggleCapture.innerHTML = '<i class="fas fa-video-slash"></i>';
+        }
+    }
+
+    btnToggleCapture.addEventListener('click', () => {
+        fetch('/toggle_capture', { method: 'POST' })
+            .then(r => r.ok && (isCapturing = !isCapturing, updateCaptureUI()));
+    });
+
+    // ===================== CONTROLS =====================
+    btnSpeak.addEventListener('click', () => fetch('/speak', { method: 'POST' }));
+
+    btnClearChar.addEventListener('click', () =>
+        fetch('/clear', { method: 'POST' }).then(() => fetchStatus())
+    );
+
+    btnClear.addEventListener('click', () =>
+        fetch('/clear_all', { method: 'POST' }).then(() => {
+            lastSentence = '';
+            sentenceDisplay.innerHTML = '';
+        })
+    );
+
+    // ===================== KEYBOARD SHORTCUTS =====================
     document.addEventListener('keydown', (e) => {
-        if (['Space', 'Backspace', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.code)) e.preventDefault();
-
+        if (['Space','Backspace'].includes(e.code)) e.preventDefault();
         switch (e.code) {
-            case 'KeyC': // حرف C لتشغيل/إيقاف الالتقاط
-                toggleCapture();
-                break;
-            case 'Backspace':
-                fetch('/clear', { method: 'POST' }).then(() => updateUI());
-                break;
-            case 'Space':
-                fetch('/add_space', { method: 'POST' }).then(() => updateUI());
-                break;
-            case 'Enter':
-                if (currentSuggestions.length > 0) {
-                    selectSuggestion(currentSuggestions[activeSuggestionIndex]);
-                }
-                break;
-            case 'ArrowLeft': // التالي في RTL
-                if (currentSuggestions.length > 0) {
-                    activeSuggestionIndex = (activeSuggestionIndex + 1) % currentSuggestions.length;
-                    renderPills();
-                }
-                break;
-            case 'ArrowRight': // السابق في RTL
-                if (currentSuggestions.length > 0) {
-                    activeSuggestionIndex = (activeSuggestionIndex - 1 + currentSuggestions.length) % currentSuggestions.length;
-                    renderPills();
-                }
-                break;
-            case 'KeyS':
-                fetch('/speak', { method: 'POST' });
-                break;
-            case 'KeyF': // إنهاء الجملة (مسح الكل)
-                fetch('/clear_all', { method: 'POST' }).then(() => updateUI());
-                break;
-            case 'Digit0': case 'Numpad0': recordNumber(0); break;
-            case 'Digit1': case 'Numpad1': recordNumber(1); break;
-            case 'Digit2': case 'Numpad2': recordNumber(2); break;
-            case 'Digit3': case 'Numpad3': recordNumber(3); break;
-            case 'Digit4': case 'Numpad4': recordNumber(4); break;
-            case 'Digit5': case 'Numpad5': recordNumber(5); break;
-            case 'Digit6': case 'Numpad6': recordNumber(6); break;
-            case 'Digit7': case 'Numpad7': recordNumber(7); break;
-            case 'Digit8': case 'Numpad8': recordNumber(8); break;
-            case 'Digit9': case 'Numpad9': recordNumber(9); break;
-            case 'KeyX': recordNumber(10); break;
-            case 'KeyY': 
-                fetch('/record_now?label=38&type=single', { method: 'POST' });
-                showToast("جاري تسجيل: ئ");
-                break;
+            case 'KeyC': btnToggleCapture.click(); break;
+            case 'Backspace': fetch('/clear', { method: 'POST' }).then(() => fetchStatus()); break;
+            case 'Space': fetch('/add_space', { method: 'POST' }).then(() => fetchStatus()); break;
+            case 'KeyS': fetch('/speak', { method: 'POST' }); break;
+            case 'KeyF': btnClear.click(); break;
         }
     });
 
-    function recordNumber(n) {
-        fetch(`/record_now?label=${n}&type=dual`, { method: 'POST' });
-        showToast(`جاري تسجيل الرقم: ${n}`);
-    }
-
-    function showToast(message) {
-        const toast = document.createElement('div');
-        toast.style.position = 'fixed';
-        toast.style.bottom = '20px';
-        toast.style.left = '50%';
-        toast.style.transform = 'translateX(-50%)';
-        toast.style.background = 'rgba(0,0,0,0.8)';
-        toast.style.color = '#fff';
-        toast.style.padding = '10px 25px';
-        toast.style.borderRadius = '30px';
-        toast.style.zIndex = '9999';
-        toast.innerText = message;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 1000);
-    }
-
-    // --- تفعيل بث الفيديو المستمر (أسرع بكثير للرازبري باي) ---
-    videoFeed.src = '/video_feed';
-
-    // دالة رسم الاقتراحات لضمان تحديث الـ active class فوراً
-    function renderPills() {
-        suggestionsContainer.innerHTML = '';
-        currentSuggestions.forEach((sug, index) => {
-            const pill = document.createElement('div');
-            pill.className = 'suggestion-pill';
-            if (index === activeSuggestionIndex) pill.classList.add('active');
-            pill.innerText = sug;
-            pill.onclick = () => selectSuggestion(sug);
-            suggestionsContainer.appendChild(pill);
-        });
-    }
-
-    // --- تحديث الواجهة ---
-    function updateUI() {
+    // ===================== MAIN POLL =====================
+    function fetchStatus() {
         fetch('/get_status')
-            .then(response => response.json())
+            .then(r => r.json())
             .then(data => {
-                sentenceDisplay.innerText = data.sentence || "";
+                renderSentence(data.sentence || '');
+                updateStatusIndicator(data);
 
                 if (data.is_capturing !== isCapturing) {
                     isCapturing = data.is_capturing;
                     updateCaptureUI();
                 }
-
-                // التعامل مع وضع اليدين (الأرقام)
-                if (data.two_hand_mode) {
-                    detectedCharDisplay.innerText = "وضع الأرقام 🔢";
-                    detectedCharDisplay.style.color = "#ff9800"; // لون برتقالي مميز للوضعية
-                } else if (isCapturing) {
-                    detectedCharDisplay.innerText = `الحرف: ${data.detected_char || "..."}`;
-                    detectedCharDisplay.style.color = "white";
-                }
-
-                if (data.detected_char && data.detected_char !== lastDetectedChar) {
-                    lastDetectedChar = data.detected_char;
-                }
-
-                // إذا تغيرت الاقتراحات، نعيد ضبط المؤشر
-                if (JSON.stringify(data.suggestions) !== JSON.stringify(currentSuggestions)) {
-                    currentSuggestions = data.suggestions || [];
-                    activeSuggestionIndex = 0;
-                    renderPills();
-                }
             })
-            .catch(err => console.error('Status fetch error:', err));
+            .catch(() => {});
     }
 
-    function selectSuggestion(word) {
-        fetch(`/select_suggestion?word=${encodeURIComponent(word)}`, { method: 'POST' })
-            .then(() => {
-                currentSuggestions = []; // مسح الاقتراحات بعد الاختيار
-                updateUI();
-            });
-    }
-
-    btnSpeak.onclick = () => { fetch('/speak', { method: 'POST' }); };
-    btnClear.onclick = () => { fetch('/clear', { method: 'POST' }).then(() => updateUI()); };
-    btnFinish.onclick = () => { fetch('/clear_all', { method: 'POST' }).then(() => updateUI()); };
-
-    setInterval(updateUI, 300);
+    setInterval(fetchStatus, 200);
+    fetchStatus();
 });

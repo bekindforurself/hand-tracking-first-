@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مرجع الإشارات العربية</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: #0a0f1e;
+            color: white;
+            min-height: 100vh;
+        }
+
+        /* Background grid */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(74,134,184,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(74,134,184,0.04) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-orb {
+            position: fixed; border-radius: 50%;
+            filter: blur(80px); pointer-events: none; z-index: 0;
+        }
+        .orb1 { width:500px; height:500px; background:radial-gradient(circle,rgba(74,134,184,0.12) 0%,transparent 70%); top:-100px; left:-100px; }
+        .orb2 { width:400px; height:400px; background:radial-gradient(circle,rgba(26,35,126,0.2) 0%,transparent 70%); bottom:-100px; right:-100px; }
+
+        /* ---- Navbar ---- */
+        .navbar {
+            position: sticky; top: 0; z-index: 100;
+            background: rgba(10,15,30,0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+            padding: 16px 40px;
+            display: flex; align-items: center; gap: 16px;
+        }
+
+        .back-btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.7);
+            padding: 8px 18px; border-radius: 12px;
+            text-decoration: none; font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+        .back-btn:hover { background: rgba(255,255,255,0.14); color: white; }
+
+        .nav-title { font-size: 1.15rem; font-weight: 700; }
+
+        .nav-badge {
+            margin-right: auto;
+            background: rgba(74,134,184,0.15);
+            border: 1px solid rgba(74,134,184,0.3);
+            color: #7ab3d9; border-radius: 50px;
+            padding: 5px 16px; font-size: 0.8rem;
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        /* ---- Main ---- */
+        .main {
+            position: relative; z-index: 1;
+            max-width: 1300px; margin: 0 auto;
+            padding: 50px 30px 80px;
+        }
+
+        /* ---- Section Header ---- */
+        .section-header {
+            display: flex; align-items: center; gap: 14px;
+            margin-bottom: 28px;
+        }
+
+        .section-icon {
+            width: 46px; height: 46px; border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem; flex-shrink: 0;
+        }
+
+        .icon-letters { background: linear-gradient(135deg,#4a86b8,#7ec8e3); box-shadow:0 8px 20px rgba(74,134,184,0.35); }
+        .icon-special { background: linear-gradient(135deg,#9c27b0,#e040fb); box-shadow:0 8px 20px rgba(156,39,176,0.35); }
+        .icon-numbers { background: linear-gradient(135deg,#ff9800,#ffc107); box-shadow:0 8px 20px rgba(255,152,0,0.35); }
+
+        .section-info h2 { font-size: 1.3rem; font-weight: 800; }
+        .section-info p  { font-size: 0.82rem; color: rgba(255,255,255,0.4); margin-top: 2px; }
+
+        .section-divider {
+            width: 100%; height: 1px;
+            background: linear-gradient(to left, transparent, rgba(255,255,255,0.1), transparent);
+            margin-bottom: 30px;
+        }
+
+        /* ---- Cards Grid ---- */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 16px;
+            margin-bottom: 60px;
+        }
+
+        .sign-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 20px;
+            padding: 14px 10px 10px;
+            display: flex; flex-direction: column; align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175,0.885,0.32,1.275);
+            animation: popIn 0.4s ease both;
+        }
+
+        .sign-card:hover {
+            transform: translateY(-6px) scale(1.03);
+            border-color: rgba(74,134,184,0.45);
+            background: rgba(74,134,184,0.08);
+            box-shadow: 0 12px 30px rgba(74,134,184,0.15);
+        }
+
+        .sign-card.special:hover {
+            border-color: rgba(156,39,176,0.45);
+            background: rgba(156,39,176,0.08);
+            box-shadow: 0 12px 30px rgba(156,39,176,0.15);
+        }
+
+        .sign-card img {
+            width: 100%; aspect-ratio: 1;
+            object-fit: contain;
+            border-radius: 12px;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .sign-label {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: rgba(255,255,255,0.9);
+        }
+
+        .sign-sub {
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.3);
+            text-align: center;
+        }
+
+        /* ---- Numbers Instruction Box ---- */
+        .numbers-box {
+            background: rgba(255,152,0,0.06);
+            border: 1px solid rgba(255,152,0,0.2);
+            border-radius: 24px;
+            padding: 36px;
+            margin-bottom: 30px;
+        }
+
+        .numbers-intro {
+            font-size: 1rem;
+            color: rgba(255,255,255,0.65);
+            line-height: 1.8;
+            margin-bottom: 30px;
+            background: rgba(255,152,0,0.08);
+            border-right: 3px solid #ff9800;
+            padding: 16px 20px;
+            border-radius: 0 12px 12px 0;
+        }
+
+        .numbers-intro strong { color: #ffb74d; }
+
+        .numbers-steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 14px;
+        }
+
+        .number-step {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,152,0,0.15);
+            border-radius: 16px;
+            padding: 16px 10px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .number-step:hover {
+            background: rgba(255,152,0,0.1);
+            border-color: rgba(255,152,0,0.4);
+            transform: translateY(-4px);
+        }
+
+        .num-big {
+            font-size: 2.2rem;
+            font-weight: 900;
+            color: #ffb74d;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .num-desc {
+            font-size: 0.72rem;
+            color: rgba(255,255,255,0.4);
+            line-height: 1.5;
+        }
+
+        /* ---- Tips Box ---- */
+        .tips-box {
+            background: rgba(56,189,139,0.06);
+            border: 1px solid rgba(56,189,139,0.2);
+            border-radius: 20px;
+            padding: 24px 28px;
+            margin-top: -20px;
+            margin-bottom: 60px;
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .tips-icon {
+            width: 40px; height: 40px;
+            background: rgba(56,189,139,0.2);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            color: #38bd8b; font-size: 1.1rem; flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .tips-content h4 { color: #38bd8b; margin-bottom: 8px; font-size: 1rem; }
+        .tips-content ul { padding-right: 18px; }
+        .tips-content li {
+            font-size: 0.85rem; color: rgba(255,255,255,0.55);
+            line-height: 1.9;
+        }
+        .tips-content li strong { color: rgba(255,255,255,0.85); }
+
+        @keyframes popIn {
+            from { opacity:0; transform:scale(0.85) translateY(10px); }
+            to   { opacity:1; transform:scale(1) translateY(0); }
+        }
+
+        /* Staggered animation */
+        .cards-grid .sign-card:nth-child(1)  { animation-delay:.03s }
+        .cards-grid .sign-card:nth-child(2)  { animation-delay:.06s }
+        .cards-grid .sign-card:nth-child(3)  { animation-delay:.09s }
+        .cards-grid .sign-card:nth-child(4)  { animation-delay:.12s }
+        .cards-grid .sign-card:nth-child(5)  { animation-delay:.15s }
+        .cards-grid .sign-card:nth-child(6)  { animation-delay:.18s }
+        .cards-grid .sign-card:nth-child(7)  { animation-delay:.21s }
+        .cards-grid .sign-card:nth-child(8)  { animation-delay:.24s }
+        .cards-grid .sign-card:nth-child(9)  { animation-delay:.27s }
+        .cards-grid .sign-card:nth-child(10) { animation-delay:.30s }
+        .cards-grid .sign-card:nth-child(n+11) { animation-delay:.33s }
+
+        /* Lightbox */
+        .lightbox {
+            position: fixed; inset: 0; z-index: 999;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(12px);
+            display: none;
+            align-items: center; justify-content: center;
+            flex-direction: column; gap: 20px;
+        }
+        .lightbox.open { display: flex; }
+
+        .lightbox img {
+            max-width: 80vw; max-height: 70vh;
+            object-fit: contain; border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.12);
+            box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+        }
+
+        .lightbox-label {
+            font-size: 2.5rem; font-weight: 900; color: white;
+        }
+
+        .lightbox-close {
+            position: absolute; top: 24px; right: 24px;
+            width: 44px; height: 44px; border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: white; font-size: 1.2rem;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.2s ease;
+        }
+        .lightbox-close:hover { background: rgba(255,80,80,0.3); }
+    </style>
+</head>
+<body>
+    <div class="bg-orb orb1"></div>
+    <div class="bg-orb orb2"></div>
+
+    <!-- Lightbox -->
+    <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+        <button class="lightbox-close" onclick="closeLightbox()"><i class="fas fa-times"></i></button>
+        <img id="lb-img" src="" alt="">
+        <div class="lightbox-label" id="lb-label"></div>
+    </div>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="/" class="back-btn"><i class="fas fa-arrow-right"></i> رجوع</a>
+        <span class="nav-title">مرجع الإشارات العربية</span>
+        <div class="nav-badge"><i class="fas fa-book-open"></i> دليل الإشارات</div>
+    </nav>
+
+    <div class="main">
+
+        <!-- ===== LETTERS SECTION ===== -->
+        <div class="section-header">
+            <div class="section-icon icon-letters"><i class="fas fa-font"></i></div>
+            <div class="section-info">
+                <h2>الحروف العربية</h2>
+                <p>إشارات الحروف الهجائية من الألف إلى الياء — إشارة يد واحدة</p>
+            </div>
+        </div>
+        <div class="section-divider"></div>
+
+        <div class="cards-grid" id="letters-grid">
+            <!-- Filled by JS -->
+        </div>
+
+        <!-- ===== SPECIAL SECTION ===== -->
+        <div class="section-header">
+            <div class="section-icon icon-special"><i class="fas fa-star"></i></div>
+            <div class="section-info">
+                <h2>إشارات خاصة</h2>
+                <p>الحذف والمسافة — تُستخدم أثناء الكتابة بالإشارة</p>
+            </div>
+        </div>
+        <div class="section-divider"></div>
+
+        <div class="cards-grid">
+            <div class="sign-card special" onclick="openLightbox('/static/pic_to_sign/حذف.jpg','حذف')">
+                <img src="/static/pic_to_sign/حذف.jpg" alt="حذف" loading="lazy">
+                <span class="sign-label">حذف</span>
+                <span class="sign-sub">Backspace</span>
+            </div>
+            <div class="sign-card special" onclick="openLightbox('/static/pic_to_sign/مسافه.jpg','مسافة')">
+                <img src="/static/pic_to_sign/مسافه.jpg" alt="مسافة" loading="lazy">
+                <span class="sign-label">مسافة</span>
+                <span class="sign-sub">Space</span>
+            </div>
+        </div>
+
+        <!-- ===== NUMBERS SECTION ===== -->
+        <div class="section-header">
+            <div class="section-icon icon-numbers"><i class="fas fa-sort-numeric-up"></i></div>
+            <div class="section-info">
+                <h2>الأرقام (0 – 10)</h2>
+                <p>إشارات الأرقام — تتطلب استخدام <strong>كلتا اليدين معاً</strong></p>
+            </div>
+        </div>
+        <div class="section-divider"></div>
+
+        <div class="numbers-box">
+            <div class="numbers-intro">
+                <strong>كيفية إشارة الأرقام:</strong><br>
+                يجب وضع <strong>كلتا اليدين أمام الكاميرا معاً</strong> حتى يتعرف النظام على وضع الأرقام تلقائياً.
+                تبدأ الأرقام من اليمين — ارفع <strong>السبابة اليمنى فقط</strong> للرقم <strong>1</strong>، ثم أضف الأصابع تدريجياً حتى <strong>5</strong>،
+                ثم تنتقل لليد اليسرى بنفس الأسلوب حتى <strong>10</strong>.
+            </div>
+
+            <div class="numbers-steps">
+                <div class="number-step">
+                    <span class="num-big">0</span>
+                    <div class="num-desc">كلتا اليدين مغلقتان (قبضة)</div>
+                </div>
+                <div class="number-step">
+                    <span class="num-big">1</span>
+                    <div class="num-desc">سبابة اليمنى مرفوعة فقط</div>
+                </div>
+                <div class="number-step">
+                    <span class="num-big">2</span>
+                    <div class="num-desc">سبابة + وسطى اليمنى</div>
+                </div>
+                <div class="number-step">
+                    <span class="num-big">3</span>
+                    <div class="num-desc">+ البنصر اليمنى</div>
+                </div>
+                <div class="number-step">
+                    <span class="num-big">4</span>
+                    <div class="num-desc">+ الخنصر اليمنى</div>
+                </div>
+                <div class="number-step">
+                    <span class="num-big">5</span>
+                    <div class="num-desc">جميع أصابع اليمنى مرفوعة</div>
+                </div>
+                <div class="number-step">
+                    <span class="num-big">6</span>
+                    <div class="num-desc">5 يمنى + إبهام يسرى</div>
+                </div>
+                <div class="number-step">
+                    <span class="num-big">7</span>
+                    <div class="num-desc">5 يمنى + إبهام وسبابة يسرى</div>
+                </div>
+                <div class="number-step">
+                    <span class="num-big">8</span>
+                    <div class="num-desc">5 يمنى + إبهام وسبابة ووسطى يسرى</div>
+                </div>
+                <div class="number-step">
+                    <span class="num-big">9</span>
+                    <div class="num-desc">5 يمنى + 4 أصابع يسرى (بدون الخنصر)</div>
+                </div>
+                <div class="number-step">
+                    <span class="num-big">10</span>
+                    <div class="num-desc">جميع أصابع اليدين مرفوعة</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tips -->
+        <div class="tips-box">
+            <div class="tips-icon"><i class="fas fa-lightbulb"></i></div>
+            <div class="tips-content">
+                <h4>نصائح للحصول على أفضل نتيجة</h4>
+                <ul>
+                    <li>ضع يدك أمام <strong>خلفية ساكنة</strong> لتسهيل الاكتشاف</li>
+                    <li>حافظ على ثبات الإشارة <strong>1.5 ثانية</strong> كاملة حتى يتم التأكيد</li>
+                    <li>للأرقام، تأكد أن <strong>كلتا اليدين ظاهرتان</strong> في إطار الكاميرا</li>
+                    <li>ابدأ الأرقام <strong>من اليمين</strong> دائماً</li>
+                    <li>حافظ على <strong>إضاءة جيدة</strong> في الغرفة</li>
+                </ul>
+            </div>
+        </div>
+
+    </div><!-- end main -->
+
+    <script>
+        // Arabic letters in order
+        const letters = [
+            'ا','ب','ت','ث','ج','ح','خ','د','ذ','ر',
+            'ز','س','ش','ص','ض','ط','ظ','ع','غ','ف',
+            'ق','ك','ل','م','ن','ه','و','ي','ة','ئ'
+        ];
+
+        const grid = document.getElementById('letters-grid');
+
+        letters.forEach(ch => {
+            const card = document.createElement('div');
+            card.className = 'sign-card';
+            card.innerHTML = `
+                <img src="/static/pic_to_sign/${encodeURIComponent(ch)}.jpg"
+                     alt="${ch}" loading="lazy"
+                     onerror="this.parentElement.style.opacity='0.35'">
+                <span class="sign-label">${ch}</span>
+            `;
+            card.onclick = () => openLightbox(`/static/pic_to_sign/${encodeURIComponent(ch)}.jpg`, ch);
+            grid.appendChild(card);
+        });
+
+        // Lightbox
+        function openLightbox(src, label) {
+            document.getElementById('lb-img').src = src;
+            document.getElementById('lb-label').textContent = label;
+            document.getElementById('lightbox').classList.add('open');
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('open');
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeLightbox();
+        });
+    </script>
+</body>
+</html>

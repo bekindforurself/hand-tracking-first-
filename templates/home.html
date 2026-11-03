@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام لغة الإشارة العربية</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            min-height: 100vh;
+            background: #0a0f1e;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Animated Background */
+        .bg-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            animation: orbFloat 8s ease-in-out infinite;
+            pointer-events: none;
+        }
+        .bg-orb-1 {
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(74,134,184,0.25) 0%, transparent 70%);
+            top: -100px; left: -100px;
+            animation-delay: 0s;
+        }
+        .bg-orb-2 {
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(26,35,126,0.3) 0%, transparent 70%);
+            bottom: -100px; right: -100px;
+            animation-delay: -4s;
+        }
+        .bg-orb-3 {
+            width: 300px; height: 300px;
+            background: radial-gradient(circle, rgba(100,160,220,0.15) 0%, transparent 70%);
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            animation-delay: -2s;
+        }
+
+        @keyframes orbFloat {
+            0%, 100% { transform: translateY(0px) scale(1); }
+            50% { transform: translateY(-30px) scale(1.05); }
+        }
+
+        /* Grid lines background */
+        body::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(74,134,184,0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(74,134,184,0.05) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 60px;
+            animation: fadeDown 0.8s ease-out;
+            position: relative;
+            z-index: 1;
+        }
+
+        .logo-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(74,134,184,0.15);
+            border: 1px solid rgba(74,134,184,0.3);
+            border-radius: 50px;
+            padding: 8px 20px;
+            margin-bottom: 20px;
+            font-size: 0.85rem;
+            color: #7ab3d9;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .logo-badge i { color: #4a86b8; }
+
+        h1 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 900;
+            color: #ffffff;
+            line-height: 1.2;
+            margin-bottom: 16px;
+        }
+
+        h1 span {
+            background: linear-gradient(135deg, #4a86b8, #7ec8e3);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: rgba(255,255,255,0.45);
+            font-weight: 400;
+        }
+
+        /* Mode Cards */
+        .modes-container {
+            display: flex;
+            gap: 30px;
+            position: relative;
+            z-index: 1;
+            animation: fadeUp 0.8s ease-out 0.2s both;
+        }
+
+        .mode-card {
+            width: 320px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 28px;
+            padding: 44px 36px;
+            text-align: center;
+            cursor: pointer;
+            text-decoration: none;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+
+        .mode-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 28px;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .mode-card-1::before {
+            background: linear-gradient(135deg, rgba(74,134,184,0.15), rgba(126,200,227,0.05));
+        }
+        .mode-card-2::before {
+            background: linear-gradient(135deg, rgba(56,189,139,0.15), rgba(34,139,120,0.05));
+        }
+        .mode-card-3::before {
+            background: linear-gradient(135deg, rgba(156,39,176,0.15), rgba(103,58,183,0.05));
+        }
+
+        .mode-card:hover {
+            transform: translateY(-10px) scale(1.02);
+            border-color: rgba(255,255,255,0.25);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.3);
+        }
+
+        .mode-card:hover::before { opacity: 1; }
+
+        .mode-card-1:hover {
+            border-color: rgba(74,134,184,0.5);
+            box-shadow: 0 30px 60px rgba(74,134,184,0.2);
+        }
+        .mode-card-2:hover {
+            border-color: rgba(56,189,139,0.5);
+            box-shadow: 0 30px 60px rgba(56,189,139,0.2);
+        }
+        .mode-card-3:hover {
+            border-color: rgba(156,39,176,0.5);
+            box-shadow: 0 30px 60px rgba(156,39,176,0.2);
+        }
+
+        .icon-wrapper {
+            width: 90px;
+            height: 90px;
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.2rem;
+            position: relative;
+            z-index: 1;
+            transition: transform 0.4s ease;
+        }
+
+        .mode-card:hover .icon-wrapper {
+            transform: scale(1.1) rotate(-5deg);
+        }
+
+        .icon-1 {
+            background: linear-gradient(135deg, #4a86b8, #7ec8e3);
+            box-shadow: 0 12px 30px rgba(74,134,184,0.4);
+        }
+        .icon-2 {
+            background: linear-gradient(135deg, #38bd8b, #22886b);
+            box-shadow: 0 12px 30px rgba(56,189,139,0.4);
+        }
+        .icon-3 {
+            background: linear-gradient(135deg, #9c27b0, #673ab7);
+            box-shadow: 0 12px 30px rgba(156,39,176,0.4);
+        }
+
+        .mode-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            position: relative;
+            z-index: 1;
+        }
+
+        .mode-desc {
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.45);
+            line-height: 1.7;
+            position: relative;
+            z-index: 1;
+        }
+
+        .mode-arrow {
+            margin-top: 8px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.12);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            position: relative;
+            z-index: 1;
+            transition: all 0.3s ease;
+        }
+
+        .mode-card:hover .mode-arrow {
+            background: rgba(255,255,255,0.15);
+            transform: translateX(-5px);
+        }
+
+        /* Divider */
+        .divider {
+            display: flex;
+            align-items: center;
+            flex-direction: column;
+            gap: 8px;
+            color: rgba(255,255,255,0.2);
+            font-size: 0.8rem;
+        }
+
+        .divider-line {
+            width: 1px;
+            height: 80px;
+            background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.15), transparent);
+        }
+
+        @keyframes fadeDown {
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 750px) {
+            .modes-container { flex-direction: column; gap: 20px; }
+            .mode-card { width: 85vw; }
+            .divider { flex-direction: row; }
+            .divider-line { width: 60px; height: 1px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-orb bg-orb-1"></div>
+    <div class="bg-orb bg-orb-2"></div>
+    <div class="bg-orb bg-orb-3"></div>
+
+    <div class="header">
+        <div class="logo-badge">
+            <i class="fas fa-hands"></i>
+            <span>Arabic Sign Language System</span>
+        </div>
+        <h1>نظام لغة <span>الإشارة العربية</span></h1>
+        <p class="subtitle">اختر الوضع الذي تريده للبدء</p>
+    </div>
+
+    <div class="modes-container">
+        <!-- Mode 1: Sign to Text -->
+        <a href="/sign-to-text" class="mode-card mode-card-1">
+            <div class="icon-wrapper icon-1">
+                <i class="fas fa-hand-paper"></i>
+            </div>
+            <div class="mode-title">إشارة ← كلام</div>
+            <div class="mode-desc">
+                حرّك يدك أمام الكاميرا<br>
+                وسيتم تحويل إشاراتك إلى نص<br>
+                ثم نطق تلقائي
+            </div>
+            <div class="mode-arrow">
+                <i class="fas fa-arrow-left"></i>
+            </div>
+        </a>
+
+        <!-- Divider -->
+        <div class="divider">
+            <div class="divider-line"></div>
+            <span>أو</span>
+            <div class="divider-line"></div>
+        </div>
+
+        <!-- Mode 2: Text to Sign -->
+        <a href="/text-to-sign" class="mode-card mode-card-2">
+            <div class="icon-wrapper icon-2">
+                <i class="fas fa-keyboard"></i>
+            </div>
+            <div class="mode-title">كلام ← إشارة</div>
+            <div class="mode-desc">
+                اكتب كلمة أو جملة<br>
+                وسيتم عرض صور الإشارات<br>
+                المقابلة لكل حرف
+            </div>
+            <div class="mode-arrow">
+                <i class="fas fa-arrow-left"></i>
+            </div>
+        </a>
+
+        <!-- Divider -->
+        <div class="divider">
+            <div class="divider-line"></div>
+            <span>أو</span>
+            <div class="divider-line"></div>
+        </div>
+
+        <!-- Mode 3: Sign Reference -->
+        <a href="/sign-reference" class="mode-card mode-card-3">
+            <div class="icon-wrapper icon-3">
+                <i class="fas fa-book-open"></i>
+            </div>
+            <div class="mode-title">الإشارات العربية</div>
+            <div class="mode-desc">
+                تصفح جميع إشارات الحروف<br>
+                والأرقام والرموز الخاصة<br>
+                مع شرح طريقة الأداء
+            </div>
+            <div class="mode-arrow">
+                <i class="fas fa-arrow-left"></i>
+            </div>
+        </a>
+    </div>
+</body>
+</html>

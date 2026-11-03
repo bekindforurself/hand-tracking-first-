@@ -133,3 +133,10 @@ dmypy.json
 .idea/
 
 .DS_Store
+
+# Large TTS model files (Piper ONNX) - not used in current app, download manually if needed
+model/tts/*.onnx
+
+# Temporary TTS audio files
+temp_speech_*.mp3
+temp_speech*.wav

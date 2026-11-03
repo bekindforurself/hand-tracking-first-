@@ -1,56 +1,520 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تطبيق لغة الإشارة</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <!-- FontAwesome for icons -->
+    <title>إشارة إلى كلام</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-</head>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* ===== OVERRIDES & ADDITIONS ===== */
+        body {
+            background: #0a0f1e;
+            background-image:
+                linear-gradient(rgba(74,134,184,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(74,134,184,0.04) 1px, transparent 1px);
+            background-size: 60px 60px;
+            overflow: hidden;
+        }
 
+        .container {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 25px 80px rgba(0,0,0,0.5);
+        }
+
+        /* ---- Camera Section ---- */
+        .camera-section { background: rgba(0,0,0,0.3); border-radius: 25px; }
+
+        .section-title {
+            background: rgba(255,255,255,0.05);
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+            color: rgba(255,255,255,0.8);
+            padding: 14px 18px;
+        }
+
+        .video-container { border-radius: 0 0 20px 20px; overflow: hidden; }
+
+        /* ---- Char Overlay with Progress Ring ---- */
+        .char-overlay-wrap {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            display: flex;
+            align-items: center;
+            gap: 0;
+        }
+
+        .progress-ring-container {
+            position: relative;
+            width: 64px;
+            height: 64px;
+        }
+
+        .progress-ring-svg {
+            transform: rotate(-90deg);
+        }
+
+        .progress-ring-bg {
+            fill: none;
+            stroke: rgba(255,255,255,0.1);
+            stroke-width: 3;
+        }
+
+        .progress-ring-fill {
+            fill: none;
+            stroke: #4a86b8;
+            stroke-width: 3;
+            stroke-linecap: round;
+            stroke-dasharray: 163; /* 2π×26 */
+            stroke-dashoffset: 163;
+            transition: stroke-dashoffset 0.2s linear, stroke 0.3s ease;
+        }
+
+        .progress-ring-fill.complete {
+            stroke: #38bd8b;
+        }
+
+        .progress-ring-fill.cooldown {
+            stroke: rgba(255,150,50,0.6);
+        }
+
+        .progress-ring-fill.number {
+            stroke: #ffb74d;
+        }
+
+        .char-center {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            font-weight: 900;
+            color: white;
+            font-family: 'Cairo', sans-serif;
+        }
+
+        /* Status badge */
+        .status-badge {
+            background: rgba(10,15,30,0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 0 12px 12px 0;
+            padding: 6px 14px 6px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .status-label {
+            font-size: 0.6rem;
+            color: rgba(255,255,255,0.35);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .status-char {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .status-state {
+            font-size: 0.62rem;
+            color: #4a86b8;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .status-state.waiting { color: rgba(255,255,255,0.3); }
+        .status-state.done    { color: #38bd8b; }
+        .status-state.cooldown { color: rgba(255,150,50,0.8); }
+
+        .dot-pulse {
+            width: 5px; height: 5px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 1s ease-in-out infinite;
+        }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+        /* Capture toggle */
+        .capture-toggle {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            width: 42px; height: 42px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            background: rgba(255,255,255,0.06);
+            color: white;
+            font-size: 1.1rem;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .capture-toggle:hover { background: rgba(255,255,255,0.15); }
+        .capture-toggle.active  { background: rgba(56,189,139,0.25); border-color: rgba(56,189,139,0.4); }
+        .capture-toggle.inactive{ background: rgba(220,53,69,0.25);  border-color: rgba(220,53,69,0.4); }
+
+        /* ---- Translation Section ---- */
+        .translation-section {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 25px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            direction: rtl;
+        }
+
+        /* Section header */
+        .trans-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .trans-title {
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.3);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .mode-pill {
+            background: rgba(74,134,184,0.15);
+            border: 1px solid rgba(74,134,184,0.25);
+            color: #7ab3d9;
+            border-radius: 50px;
+            padding: 4px 14px;
+            font-size: 0.75rem;
+        }
+
+        /* Sentence Box */
+        .sentence-box {
+            flex: 1;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 20px;
+            padding: 24px 28px;
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 20px;
+            min-height: 0;
+        }
+
+        .sentence-label {
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.2);
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+
+        #sentence-display {
+            flex: 1;
+            font-size: 3.8rem;
+            font-weight: 900;
+            color: white;
+            word-break: break-all;
+            line-height: 1.4;
+            overflow-y: auto;
+            direction: rtl;
+            text-align: right;
+        }
+
+        /* Flash glow animation when a new char is confirmed */
+        @keyframes sentenceGlow {
+            0%   { text-shadow: 0 0 0px transparent; color: white; }
+            25%  { text-shadow: 0 0 25px rgba(56,189,139,0.8), 0 0 50px rgba(56,189,139,0.4); color: #a8f0d8; }
+            100% { text-shadow: 0 0 0px transparent; color: white; }
+        }
+
+        #sentence-display.sentence-flash {
+            animation: sentenceGlow 0.6s ease-out forwards;
+        }
+
+        /* Big char confirmation toast */
+        #confirm-toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: rgba(56,189,139,0.15);
+            border: 2px solid rgba(56,189,139,0.5);
+            border-radius: 30px;
+            padding: 30px 50px;
+            font-size: 5rem;
+            font-weight: 900;
+            color: white;
+            backdrop-filter: blur(20px);
+            z-index: 9999;
+            pointer-events: none;
+            transition: transform 0.25s cubic-bezier(0.175,0.885,0.32,1.275), opacity 0.25s ease;
+            opacity: 0;
+            text-align: center;
+        }
+
+        #confirm-toast.show {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+        }
+
+        #confirm-toast.hide {
+            transform: translate(-50%, -50%) scale(0.8);
+            opacity: 0;
+        }
+
+        .toast-sub {
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.5);
+            text-align: center;
+            font-weight: 400;
+            margin-top: 6px;
+        }
+
+        /* Controls */
+        .controls-section {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 14px 16px;
+            border-radius: 14px;
+            border: none;
+            cursor: pointer;
+            font-family: 'Cairo', sans-serif;
+            font-weight: 700;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-speak {
+            flex: 2;
+            background: linear-gradient(135deg, #4a86b8, #3a6a92);
+            color: white;
+            box-shadow: 0 6px 20px rgba(74,134,184,0.3);
+        }
+        .btn-speak:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(74,134,184,0.4); }
+
+        .btn-del {
+            flex: 1;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.6);
+        }
+        .btn-del:hover { background: rgba(255,80,80,0.15); border-color: rgba(255,80,80,0.3); color: rgba(255,130,130,0.9); }
+
+        .btn-clear {
+            flex: 1;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.4);
+        }
+        .btn-clear:hover { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); }
+
+        /* Home link */
+        .home-link {
+            display: inline-flex; align-items: center; gap: 6px;
+            color: rgba(255,255,255,0.4);
+            font-size: 0.78rem;
+            text-decoration: none;
+            padding: 4px 10px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            transition: all 0.2s;
+        }
+        .home-link:hover { color: white; background: rgba(255,255,255,0.1); }
+
+        /* Two-hand mode indicator */
+        #two-hand-badge {
+            display: none;
+            position: absolute;
+            bottom: 18px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,152,0,0.2);
+            border: 1px solid rgba(255,152,0,0.4);
+            color: #ffb74d;
+            border-radius: 50px;
+            padding: 6px 18px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            backdrop-filter: blur(10px);
+            gap: 8px;
+            align-items: center;
+        }
+        #two-hand-badge.visible {
+            display: flex;
+        }
+
+        /* ---- Internet Toast Notification ---- */
+        #internet-toast {
+            position: fixed;
+            bottom: 28px;
+            left: 50%;
+            transform: translateX(-50%) translateY(0);
+            background: rgba(15, 20, 40, 0.92);
+            border: 1px solid rgba(255, 183, 77, 0.35);
+            border-radius: 14px;
+            padding: 12px 22px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #ffcc80;
+            font-size: 0.82rem;
+            font-family: 'Cairo', sans-serif;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,183,77,0.1);
+            z-index: 10000;
+            opacity: 1;
+            transition: opacity 0.6s ease, transform 0.6s ease;
+            pointer-events: none;
+        }
+        #internet-toast.hidden {
+            opacity: 0;
+            transform: translateX(-50%) translateY(16px);
+        }
+        #internet-toast .toast-icon {
+            font-size: 1rem;
+            color: #ffb74d;
+        }
+        #internet-toast strong {
+            color: #ffe0a0;
+        }
+
+        /* ---- Small permanent wifi badge ---- */
+        #wifi-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.68rem;
+            color: rgba(255,183,77,0.45);
+            margin-top: 10px;
+            justify-content: center;
+            letter-spacing: 0.5px;
+        }
+        #wifi-badge i {
+            font-size: 0.65rem;
+        }
+    </style>
+</head>
 <body>
+    <!-- Big confirmation toast -->
+    <div id="confirm-toast">
+        <div id="toast-char"></div>
+        <div class="toast-sub">تم التأكيد</div>
+    </div>
+
+    <!-- Internet connection notice toast -->
+    <div id="internet-toast">
+        <span class="toast-icon"><i class="fas fa-wifi"></i></span>
+        <span><strong>تنبيه:</strong> خاصية الصوت تتطلب اتصالاً بالإنترنت</span>
+    </div>
+
     <div class="container fade-in">
-        <!-- Left Section: Live Sign Detection (Camera) -->
-        <div class="glass-card camera-section" style="direction:ltr;">
-            <div class="section-title"
-                style="font-family:'Inter',sans-serif; display:flex; justify-content:space-between; align-items:center;">
-                <span>Live Sign Detection</span>
+        <!-- ===== Camera Section ===== -->
+        <div class="camera-section" style="direction:ltr;">
+            <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-family:'Inter',sans-serif; font-size:0.9rem; letter-spacing:1px;">LIVE SIGN DETECTION</span>
+                <a href="/" class="home-link">
+                    <i class="fas fa-home"></i> Home
+                </a>
             </div>
+
             <div class="video-container">
-                <img id="video-feed" src="/snapshot" alt="Camera Feed">
-                <div id="detected-char" class="char-overlay">الحرف: ...</div>
-                <button id="btn-toggle-capture" class="capture-toggle" title="تشغيل/إيقاف الالتقاط">
+                <img id="video-feed" src="/video_feed" alt="Camera Feed">
+
+                <!-- Progress Ring + Char Overlay -->
+                <div class="char-overlay-wrap" id="char-overlay-wrap">
+                    <div class="progress-ring-container">
+                        <svg class="progress-ring-svg" width="64" height="64" viewBox="0 0 64 64">
+                            <circle class="progress-ring-bg" cx="32" cy="32" r="26"/>
+                            <circle class="progress-ring-fill" id="progress-ring" cx="32" cy="32" r="26"/>
+                        </svg>
+                        <div class="char-center" id="char-center">?</div>
+                    </div>
+                    <div class="status-badge">
+                        <div class="status-label">الحرف</div>
+                        <div class="status-char" id="status-char">—</div>
+                        <div class="status-state waiting" id="status-state">
+                            <span class="dot-pulse"></span>
+                            في انتظار الإشارة
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Two-hand badge -->
+                <div id="two-hand-badge">
+                    <i class="fas fa-hands"></i>
+                    وضع الأرقام
+                </div>
+
+                <!-- Capture Toggle -->
+                <button id="btn-toggle-capture" class="capture-toggle active" title="تشغيل/إيقاف">
                     <i class="fas fa-video"></i>
                 </button>
             </div>
         </div>
 
-        <!-- Right Section: Translation & Interaction -->
+        <!-- ===== Translation Section ===== -->
         <div class="translation-section">
-            <div class="text-display-box">
-                <div id="sentence-display" class="sentence-display"></div>
+            <div class="trans-header">
+                <div class="trans-title">نتيجة الترجمة</div>
+                <div class="mode-pill"><i class="fas fa-hand-paper"></i> إشارة → كلام</div>
+            </div>
 
-                <div class="suggestions-container" id="suggestions">
-                    <!-- سيتم ملؤها ديناميكياً عبر JavaScript -->
-                </div>
+            <div class="sentence-box">
+                <div class="sentence-label">الجملة المترجمة</div>
+                <div id="sentence-display"></div>
+            </div>
+
+            <div id="wifi-badge">
+                <i class="fas fa-wifi"></i> الصوت يتطلب اتصالاً بالإنترنت
             </div>
 
             <div class="controls-section">
-                <!-- أزرار التحكم كما في الصورة -->
-                <button id="btn-speak" class="btn btn-primary">
-                    تشغيل الصوت <i class="fas fa-volume-up"></i>
+                <button id="btn-speak" class="btn btn-speak">
+                    <i class="fas fa-volume-up"></i>
+                    تشغيل الصوت
                 </button>
-                <button id="btn-clear" class="btn btn-secondary" title="حذف حرف">
-                    مسح <i class="fas fa-trash-alt"></i>
+                <button id="btn-clear-char" class="btn btn-del" title="حذف آخر حرف">
+                    <i class="fas fa-backspace"></i>
+                    حذف
                 </button>
-                <button id="btn-finish" class="btn btn-danger">إنهاء الجملة</button>
+                <button id="btn-clear" class="btn btn-clear" title="مسح الكل">
+                    <i class="fas fa-trash"></i>
+                    مسح
+                </button>
             </div>
         </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-</body>
 
+    <!-- Auto-hide internet toast after 3 seconds -->
+    <script>
+        (function() {
+            var toast = document.getElementById('internet-toast');
+            if (toast) {
+                setTimeout(function() {
+                    toast.classList.add('hidden');
+                }, 3000);
+            }
+        })();
+    </script>
+</body>
 </html>

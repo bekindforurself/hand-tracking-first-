@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import csv, copy, argparse, itertools, os, requests, json, threading, pygame, asyncio, edge_tts
+import csv, copy, argparse, itertools, os, requests, json, threading, pygame, asyncio, edge_tts, time
 import cv2 as cv
 import numpy as np
 import mediapipe as mp

@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تحويل النص إلى إشارة</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            min-height: 100vh;
+            background: #0a0f1e;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Background */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(56,189,139,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(56,189,139,0.04) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .orb1 {
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(56,189,139,0.12) 0%, transparent 70%);
+            top: -200px; right: -200px;
+        }
+        .orb2 {
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(74,134,184,0.1) 0%, transparent 70%);
+            bottom: -100px; left: -100px;
+        }
+
+        /* Navbar */
+        .navbar {
+            position: relative;
+            z-index: 10;
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            background: rgba(10,15,30,0.6);
+            backdrop-filter: blur(20px);
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.7);
+            padding: 8px 18px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+        .back-btn:hover {
+            background: rgba(255,255,255,0.12);
+            color: white;
+        }
+
+        .nav-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: rgba(255,255,255,0.85);
+        }
+
+        .mode-badge {
+            margin-right: auto;
+            background: rgba(56,189,139,0.15);
+            border: 1px solid rgba(56,189,139,0.3);
+            color: #38bd8b;
+            padding: 5px 14px;
+            border-radius: 50px;
+            font-size: 0.8rem;
+        }
+
+        /* Main Content */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 50px 30px 40px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Input Section */
+        .input-section {
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 50px;
+            animation: fadeUp 0.6s ease-out;
+        }
+
+        .input-label {
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.4);
+            margin-bottom: 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 14px;
+        }
+
+        #text-input {
+            flex: 1;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 18px;
+            padding: 18px 24px;
+            font-family: 'Cairo', sans-serif;
+            font-size: 1.3rem;
+            color: white;
+            outline: none;
+            transition: all 0.3s ease;
+            direction: rtl;
+        }
+
+        #text-input::placeholder { color: rgba(255,255,255,0.2); }
+
+        #text-input:focus {
+            border-color: rgba(56,189,139,0.5);
+            background: rgba(56,189,139,0.05);
+            box-shadow: 0 0 0 4px rgba(56,189,139,0.08);
+        }
+
+        #convert-btn {
+            background: linear-gradient(135deg, #38bd8b, #22886b);
+            color: white;
+            border: none;
+            border-radius: 18px;
+            padding: 18px 36px;
+            font-family: 'Cairo', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 25px rgba(56,189,139,0.3);
+            white-space: nowrap;
+        }
+
+        #convert-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 35px rgba(56,189,139,0.45);
+        }
+
+        #convert-btn:active { transform: translateY(0); }
+
+        /* Output Section */
+        .output-section {
+            width: 100%;
+            max-width: 1100px;
+            animation: fadeUp 0.6s ease-out 0.1s both;
+        }
+
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .output-label {
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.4);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        #clear-btn {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.4);
+            border-radius: 10px;
+            padding: 6px 16px;
+            font-family: 'Cairo', sans-serif;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+        #clear-btn:hover {
+            border-color: rgba(255,100,100,0.4);
+            color: rgba(255,100,100,0.7);
+        }
+
+        /* Signs Display */
+        #signs-display {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0;
+            min-height: 220px;
+            align-items: flex-end;
+        }
+
+        /* Word Group */
+        .word-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: flex-end;
+            margin-left: 24px; /* space between words */
+            margin-bottom: 16px;
+            position: relative;
+        }
+
+        .word-group:last-child { margin-left: 0; }
+
+        /* Word separator line */
+        .word-separator {
+            width: 2px;
+            height: 60px;
+            background: rgba(255,255,255,0.08);
+            align-self: center;
+            border-radius: 2px;
+            margin: 0 10px 16px 10px;
+            flex-shrink: 0;
+        }
+
+        /* Sign Card */
+        .sign-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+        }
+
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.5) translateY(20px); }
+            to   { opacity: 1; transform: scale(1)  translateY(0); }
+        }
+
+        .sign-card img {
+            width: 130px;
+            height: 130px;
+            object-fit: contain;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 18px;
+            transition: all 0.3s ease;
+            padding: 8px;
+        }
+
+        .sign-card img:hover {
+            transform: scale(1.08) translateY(-4px);
+            border-color: rgba(56,189,139,0.4);
+            box-shadow: 0 10px 30px rgba(56,189,139,0.2);
+        }
+
+        .sign-label {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: rgba(255,255,255,0.85);
+        }
+
+        /* Not found */
+        .sign-not-found {
+            width: 130px;
+            height: 130px;
+            background: rgba(255,255,255,0.03);
+            border: 1px dashed rgba(255,255,255,0.1);
+            border-radius: 18px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            color: rgba(255,255,255,0.25);
+            font-size: 0.75rem;
+        }
+        .sign-not-found i { font-size: 1.5rem; }
+
+        /* Empty State */
+        .empty-state {
+            width: 100%;
+            min-height: 220px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            color: rgba(255,255,255,0.2);
+        }
+        .empty-state i { font-size: 3.5rem; }
+        .empty-state p { font-size: 1rem; }
+
+        /* Stats bar */
+        #stats-bar {
+            margin-top: 20px;
+            font-size: 0.8rem;
+            color: rgba(255,255,255,0.25);
+            text-align: center;
+            display: none;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-orb orb1"></div>
+    <div class="bg-orb orb2"></div>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="/" class="back-btn">
+            <i class="fas fa-arrow-right"></i>
+            رجوع
+        </a>
+        <span class="nav-title">تحويل النص إلى إشارة</span>
+        <span class="mode-badge">
+            <i class="fas fa-keyboard"></i>
+            كلام ← إشارة
+        </span>
+    </nav>
+
+    <!-- Main -->
+    <main class="main">
+        <!-- Input -->
+        <div class="input-section">
+            <div class="input-label">اكتب النص هنا</div>
+            <div class="input-wrapper">
+                <input
+                    type="text"
+                    id="text-input"
+                    placeholder="مثال: مرحبا"
+                    autocomplete="off"
+                    spellcheck="false"
+                />
+                <button id="convert-btn">
+                    <i class="fas fa-magic"></i>
+                    تحويل
+                </button>
+            </div>
+        </div>
+
+        <!-- Output -->
+        <div class="output-section">
+            <div class="output-header">
+                <div class="output-label">الإشارات</div>
+                <button id="clear-btn">
+                    <i class="fas fa-times"></i>
+                    مسح
+                </button>
+            </div>
+
+            <div id="signs-display">
+                <div class="empty-state">
+                    <i class="fas fa-hand-sparkles"></i>
+                    <p>اكتب نصاً واضغط تحويل لعرض الإشارات</p>
+                </div>
+            </div>
+
+            <div id="stats-bar"></div>
+        </div>
+    </main>
+
+    <script>
+        const textInput   = document.getElementById('text-input');
+        const convertBtn  = document.getElementById('convert-btn');
+        const clearBtn    = document.getElementById('clear-btn');
+        const signsDisplay = document.getElementById('signs-display');
+        const statsBar    = document.getElementById('stats-bar');
+
+        // أسماء الملفات المتاحة - مطابقة للحروف الموجودة في المجلد
+        const availableChars = new Set([
+            'ا','ب','ت','ث','ج','ح','خ','د','ذ','ر','ز',
+            'س','ش','ص','ض','ط','ظ','ع','غ','ف','ق','ك',
+            'ل','م','ن','ه','و','ي','ة','ئ'
+        ]);
+
+        function convertText() {
+            const raw = textInput.value.trim();
+            if (!raw) return;
+
+            signsDisplay.innerHTML = '';
+            statsBar.style.display = 'none';
+
+            const words = raw.split(' ').filter(w => w.length > 0);
+            let totalShown = 0;
+            let totalMissing = 0;
+            let delay = 0;
+
+            words.forEach((word, wordIndex) => {
+                const wordGroup = document.createElement('div');
+                wordGroup.className = 'word-group';
+
+                Array.from(word).forEach((char) => {
+                    const card = document.createElement('div');
+                    card.className = 'sign-card';
+                    card.style.animationDelay = `${delay}s`;
+                    delay += 0.06;
+
+                    if (availableChars.has(char)) {
+                        const img = document.createElement('img');
+                        img.src = `/static/pic_to_sign/${encodeURIComponent(char)}.jpg`;
+                        img.alt = char;
+                        img.loading = 'lazy';
+                        img.onerror = () => {
+                            card.innerHTML = notFoundHTML(char);
+                            totalMissing++;
+                        };
+                        const label = document.createElement('span');
+                        label.className = 'sign-label';
+                        label.textContent = char;
+                        card.appendChild(img);
+                        card.appendChild(label);
+                        totalShown++;
+                    } else {
+                        // حروف مثل space أو رموز غير مدعومة
+                        card.innerHTML = notFoundHTML(char);
+                        totalMissing++;
+                    }
+
+                    wordGroup.appendChild(card);
+                });
+
+                signsDisplay.appendChild(wordGroup);
+
+                // مسافة بصرية بين الكلمات
+                if (wordIndex < words.length - 1) {
+                    const sep = document.createElement('div');
+                    sep.className = 'word-separator';
+                    signsDisplay.appendChild(sep);
+                }
+            });
+
+            // Stats
+            statsBar.style.display = 'block';
+            statsBar.textContent = `${totalShown} إشارة معروضة${totalMissing > 0 ? ` · ${totalMissing} حرف غير متاح` : ''}`;
+        }
+
+        function notFoundHTML(char) {
+            return `
+                <div class="sign-not-found">
+                    <i class="fas fa-question"></i>
+                    <span>${char}</span>
+                </div>
+                <span class="sign-label">${char}</span>`;
+        }
+
+        convertBtn.addEventListener('click', convertText);
+
+        textInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') convertText();
+        });
+
+        clearBtn.addEventListener('click', () => {
+            textInput.value = '';
+            signsDisplay.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-hand-sparkles"></i>
+                    <p>اكتب نصاً واضغط تحويل لعرض الإشارات</p>
+                </div>`;
+            statsBar.style.display = 'none';
+        });
+
+        // Focus on load
+        textInput.focus();
+    </script>
+</body>
+</html>

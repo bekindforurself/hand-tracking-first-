@@ -96,6 +96,18 @@ def pre_process_landmarks(landmark_list):
     temp_landmark_list = list(map(normalize_, temp_landmark_list))
     return temp_landmark_list
 
+def draw_styled_box(img, x1, y1, x2, y2, color=(255, 255, 255), thickness=1, flash_alpha=0.0):
+    # Draw thin white boundary
+    cv.rectangle(img, (x1, y1), (x2, y2), (255, 255, 255), thickness)
+
+    # Flash effect inside the box
+    if flash_alpha > 0:
+        roi = img[y1:y2, x1:x2]
+        if roi.size > 0:
+            white_rect = np.full(roi.shape, 255, dtype=np.uint8)
+            alpha = flash_alpha * 0.5
+            cv.addWeighted(white_rect, alpha, roi, 1 - alpha, 0, roi)
+
 def detection_thread():
     global state
     cap = None
@@ -125,6 +137,7 @@ def detection_thread():
                 num_labels = [row[0] for row in csv.reader(f)]
 
         cooldown_until = 0
+        flash_anim = 0.0
 
         while state.is_running:
             ret, frame = cap.read()
@@ -132,7 +145,7 @@ def detection_thread():
             frame = cv.flip(frame, 1)
             
             char_found = ""
-
+            brects = []
             if state.is_capturing:
                 rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
                 results = hands.process(rgb_frame)
@@ -144,13 +157,21 @@ def detection_thread():
 
                     for hand_landmarks in results.multi_hand_landmarks:
                         landmark_list = []
+                        x_min, y_min, x_max, y_max = 640, 480, 0, 0
                         for landmark in hand_landmarks.landmark:
-                            landmark_list.append([min(int(landmark.x * 640), 639), min(int(landmark.y * 480), 479)])
+                            px, py = min(int(landmark.x * 640), 639), min(int(landmark.y * 480), 479)
+                            landmark_list.append([px, py])
+                            x_min, y_min = min(x_min, px), min(y_min, py)
+                            x_max, y_max = max(x_max, px), max(y_max, py)
                         
+                        # Add Bounding Box with padding
+                        p = 20
+                        brects.append((max(0, x_min-p), max(0, y_min-p), min(639, x_max+p), min(479, y_max+p)))
+
                         for i, j in [(2,3),(3,4),(5,6),(6,7),(7,8),(9,10),(10,11),(11,12),(13,14),(14,15),(15,16),(17,18),(18,19),(19,20),(0,1),(1,2),(2,5),(5,9),(9,13),(13,17),(17,0)]:
                             cv.line(frame, tuple(landmark_list[i]), tuple(landmark_list[j]), (255, 255, 255), 2)
                         for idx in [4, 8, 12, 16, 20]:
-                            cv.circle(frame, tuple(landmark_list[idx]), 6, (0, 165, 255), -1)
+                            cv.circle(frame, tuple(landmark_list[idx]), 3, (255, 255, 255), -1)
 
                         all_raw_hands_data.append(landmark_list)
 
@@ -194,9 +215,19 @@ def detection_thread():
                         elif char_found == "حذف": state.word_buffer = state.word_buffer[:-1]
                         else: state.word_buffer += char_found
                         cooldown_until = time.time() + 2.0
+                        state._cooldown_until = cooldown_until
                         state.stability_time = time.time()
+                        flash_anim = 1.0
                 else: state.stability_time = 0
                 state.last_stable_char = char_found
+
+            # Draw styled boxes and handle animation
+            for bx in brects:
+                draw_styled_box(frame, bx[0], bx[1], bx[2], bx[3], flash_alpha=flash_anim)
+
+            if flash_anim > 0:
+                flash_anim -= 0.1
+                if flash_anim < 0: flash_anim = 0
 
             _, buffer = cv.imencode('.jpg', frame)
             state.current_frame = buffer.tobytes()
@@ -207,7 +238,16 @@ def detection_thread():
         if cap: cap.release()
 
 @app.route('/')
-def index(): return render_template('index.html')
+def home(): return render_template('home.html')
+
+@app.route('/sign-to-text')
+def sign_to_text(): return render_template('index.html')
+
+@app.route('/text-to-sign')
+def text_to_sign(): return render_template('text_to_sign.html')
+
+@app.route('/sign-reference')
+def sign_reference(): return render_template('sign_reference.html')
 
 @app.route('/video_feed')
 def video_feed():
@@ -220,12 +260,23 @@ def video_feed():
 @app.route('/get_status')
 def get_status():
     with state.lock:
+        # حساب نسبة تقدم الاستقرار (0-100)
+        STABILITY_NEEDED = 1.5
+        progress = 0.0
+        if state.stability_time > 0 and state.detected_char:
+            elapsed = time.time() - state.stability_time
+            progress = min(elapsed / STABILITY_NEEDED * 100, 100)
+
+        is_cooldown = time.time() < getattr(state, '_cooldown_until', 0)
+
         return jsonify({
             "sentence": state.word_buffer,
             "detected_char": state.detected_char,
             "suggestions": [],
             "two_hand_mode": state.two_hand_mode,
-            "is_capturing": state.is_capturing
+            "is_capturing": state.is_capturing,
+            "stability_progress": round(progress, 1),
+            "is_cooldown": is_cooldown
         })
 
 @app.route('/toggle_capture', methods=['POST'])
@@ -253,6 +304,18 @@ def speak():
 def clear_all():
     with state.lock:
         state.word_buffer = ""
+    return "OK"
+
+@app.route('/clear', methods=['POST'])
+def clear_char():
+    with state.lock:
+        state.word_buffer = state.word_buffer[:-1]
+    return "OK"
+
+@app.route('/add_space', methods=['POST'])
+def add_space():
+    with state.lock:
+        state.word_buffer += " "
     return "OK"
 
 if __name__ == '__main__':
