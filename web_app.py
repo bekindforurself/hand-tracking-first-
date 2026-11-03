@@ -1,4 +1,5 @@
-import csv, copy, argparse, itertools, os, requests, json, threading, pygame, time, socket, cv2 as cv, numpy as np, mediapipe as mp, asyncio, edge_tts
+import csv, copy, argparse, itertools, os, requests, json, threading, pygame, time, socket, cv2 as cv, numpy as np, mediapipe as mp
+from gtts import gTTS
 from flask import Flask, render_template, Response, jsonify, request
 import logging
 
@@ -65,12 +66,9 @@ def speak_text(text):
     if not text.strip(): return
     def run():
         try:
-            VOICE = "ar-SA-HamedNeural"
             temp_file = f"temp_speech_{int(time.time())}.mp3"
-            async def generate():
-                communicate = edge_tts.Communicate(text, VOICE)
-                await communicate.save(temp_file)
-            asyncio.run(generate())
+            tts = gTTS(text=text, lang='ar')
+            tts.save(temp_file)
             pygame.mixer.music.load(temp_file)
             pygame.mixer.music.play()
             while pygame.mixer.music.get_busy(): time.sleep(0.1)
